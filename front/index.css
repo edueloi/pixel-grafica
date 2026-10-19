@@ -1,0 +1,43 @@
+@import './components/ui/styles.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mesma densidade tipográfica do MFC: pesos mais leves, menos "gritado". */
+.font-black { font-weight: 600 !important; }
+.font-bold { font-weight: 500 !important; }
+.font-semibold { font-weight: 500 !important; }
+
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; -webkit-tap-highlight-color: transparent; }
+body { background-color: #f8fafc; overscroll-behavior: none; font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif; }
+* { touch-action: manipulation; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background-color: #f1f5f9; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+}
+
+input[type="text"], input[type="email"], input[type="tel"], input[type="password"], input[type="number"], input[type="date"], select, textarea { font-size: 16px !important; }
+@media (min-width: 640px) {
+  input[type="text"], input[type="email"], input[type="tel"], input[type="password"], input[type="number"], input[type="date"], select, textarea { font-size: 13px !important; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+
+/* Conversa do WhatsApp */
+.chat-bg { background-color: #eef2f7; background-image: radial-gradient(#dbe4ef 1px, transparent 1px); background-size: 14px 14px; }
+.bubble { max-width: min(80%, 540px); overflow-wrap: anywhere; white-space: pre-wrap; word-break: break-word; }
+
+/* Quadro de produção */
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+@media (pointer: coarse) { .ui-button, .ui-icon-button { min-height: 40px; } }
+
+/* Variáveis das mensagens (badge dentro do texto e botões "Inserir") */
+.var-chip { display: inline-flex; align-items: center; gap: 3px; margin: 0 1px; padding: 0 7px; border-radius: 999px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 500; line-height: 20px; white-space: nowrap; user-select: none; vertical-align: baseline; }
+.var-chip-btn { cursor: pointer; transition: background-color .15s, border-color .15s; }
+.var-chip-btn:hover { background: #dbeafe; border-color: #93c5fd; }

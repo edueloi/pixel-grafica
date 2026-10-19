@@ -1,0 +1,25 @@
+# Banco de dados do Pixel Gráfica (MySQL 8). Sobe com: npm run db:up
+services:
+  db:
+    image: mysql:8.4
+    container_name: pixel-grafica-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pixel_grafica
+      MYSQL_USER: pixel
+      MYSQL_PASSWORD: pixel
+      TZ: America/Sao_Paulo
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "3307:3306"
+    volumes:
+      - pixel_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pixel_db_data:

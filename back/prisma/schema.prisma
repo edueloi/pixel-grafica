@@ -1,0 +1,401 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USUÁRIOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(120)
+  username     String?  @unique @db.VarChar(40) // login (ex.: "admin"); o e-mail também funciona para entrar
+  email        String   @unique @db.VarChar(160)
+  passwordHash String
+  role         String   @default("atendente") @db.VarChar(20) // admin | atendente | producao | financeiro
+  phone        String?  @db.VarChar(30) // WhatsApp do atendente (recebe ofertas de atendimento do bot)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENTES, PRODUTOS, ORÇAMENTOS E PEDIDOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(160)
+  company   String?  @db.VarChar(160)
+  document  String?  @db.VarChar(20) // CPF/CNPJ (só dígitos)
+  phone     String?  @db.VarChar(30) // WhatsApp (só dígitos, com DDI 55)
+  email     String?  @db.VarChar(160)
+  zip       String?  @db.VarChar(10)
+  street    String?  @db.VarChar(200)
+  number    String?  @db.VarChar(20)
+  district  String?  @db.VarChar(100)
+  city      String?  @db.VarChar(100)
+  state     String?  @db.VarChar(2)
+  notes     String?  @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotes        Quote[]
+  orders        Order[]
+  attachments   Attachment[]
+  conversations WppConversation[]
+
+  @@index([phone])
+  @@index([document])
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  name           String   @db.VarChar(160)
+  category       String   @default("Geral") @db.VarChar(80) // Cartão de visita, Banner, Adesivo, Impressão…
+  description    String?  @db.Text // formatos, papéis, acabamentos disponíveis (a IA usa este texto)
+  howItWorks     String?  @db.Text // como funciona: arquivo/arte, sangria, processo, cuidados (a IA explica ao cliente)
+  unit           String   @default("un") @db.VarChar(20) // un | milheiro | m2 | folha
+  price          Decimal  @default(0) @db.Decimal(10, 2) // preço por unidade (faixa inicial)
+  // pricingMode "unit": priceTiers = preço POR UNIDADE a partir de minQty (ex.: camiseta 1+ = 60, 5+ = 54).
+  // pricingMode "package": tabela fechada; priceTiers = TOTAL cobrado para aquela quantidade exata (ex.: 1.000 folhetos = 215). Outras quantidades: sob consulta.
+  pricingMode    String   @default("unit") @db.VarChar(10)
+  priceTiers     Json?
+  minQty         Int      @default(1)
+  leadTime       String?  @db.VarChar(80) // prazo em texto livre: "4 a 5 dias úteis". Vazio = a consultar
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  quoteItems QuoteItem[]
+  orderItems OrderItem[]
+}
+
+model Quote {
+  id          String    @id @default(uuid())
+  number      Int       @unique @default(autoincrement())
+  customerId  String
+  status      String    @default("rascunho") @db.VarChar(20) // rascunho | enviado | aprovado | recusado
+  validUntil  DateTime?
+  discount    Decimal   @default(0) @db.Decimal(10, 2)
+  total       Decimal   @default(0) @db.Decimal(10, 2)
+  notes       String?   @db.Text
+  source      String    @default("painel") @db.VarChar(20) // painel | whatsapp
+  sentAt      DateTime? // quando o PDF foi enviado ao cliente pelo WhatsApp
+  createdById String?   @db.VarChar(36)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  items       QuoteItem[]
+  orders      Order[]
+  attachments Attachment[]
+
+  @@index([status])
+}
+
+model QuoteItem {
+  id          String  @id @default(uuid())
+  quoteId     String
+  productId   String?
+  sortOrder   Int     @default(0) // posição do item no documento
+  description String  @db.VarChar(300)
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal @default(0) @db.Decimal(12, 6) // 6 casas: em tabela fechada o unitário é fracionado (585 ÷ 20.000 = 0,02925)
+  total       Decimal @default(0) @db.Decimal(10, 2)
+
+  quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model Order {
+  id            String    @id @default(uuid())
+  number        Int       @unique @default(autoincrement())
+  customerId    String
+  quoteId       String?
+  // aguardando_arquivo → arte → aprovacao_arte → producao → acabamento → pronto → entregue | cancelado
+  status        String    @default("aguardando_arquivo") @db.VarChar(30)
+  priority      String    @default("normal") @db.VarChar(10) // normal | urgente
+  dueDate       DateTime?
+  total         Decimal   @default(0) @db.Decimal(10, 2)
+  paid          Decimal   @default(0) @db.Decimal(10, 2)
+  deliveryType  String    @default("retirada") @db.VarChar(10) // retirada | entrega
+  notes         String?   @db.Text
+  createdById   String?   @db.VarChar(36)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deliveredAt   DateTime?
+
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  quote       Quote?       @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  items       OrderItem[]
+  events      OrderEvent[]
+  payments    OrderPayment[]
+  attachments Attachment[]
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  productId   String?
+  sortOrder   Int     @default(0) // posição do item no documento
+  description String  @db.VarChar(300)
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal @default(0) @db.Decimal(12, 6) // 6 casas: em tabela fechada o unitário é fracionado (585 ÷ 20.000 = 0,02925)
+  total       Decimal @default(0) @db.Decimal(10, 2)
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+// Pagamentos recebidos de um pedido (o campo "paid" do pedido é a soma deles)
+model OrderPayment {
+  id        String   @id @default(uuid())
+  orderId   String
+  amount    Decimal  @db.Decimal(10, 2)
+  method    String?  @db.VarChar(30) // pix | dinheiro | cartao | boleto | transferencia
+  note      String?  @db.VarChar(300)
+  userName  String?  @db.VarChar(120)
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+model OrderEvent {
+  id        String   @id @default(uuid())
+  orderId   String
+  status    String   @db.VarChar(30)
+  note      String?  @db.VarChar(500)
+  userName  String?  @db.VarChar(120)
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REGISTRO DE SERVIÇOS REALIZADOS (histórico). Entram sozinhos quando o pedido é entregue,
+// podem ser lançados à mão ou importados de planilha.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ServiceRecord {
+  id            String   @id @default(uuid())
+  date          DateTime // dia em que o serviço foi feito/entregue
+  customerId    String?  @db.VarChar(36)
+  customerName  String   @db.VarChar(160)
+  description   String   @db.VarChar(300)
+  category      String?  @db.VarChar(80)
+  quantity      Decimal  @default(1) @db.Decimal(10, 2)
+  unitPrice     Decimal  @default(0) @db.Decimal(12, 6)
+  total         Decimal  @default(0) @db.Decimal(10, 2) // venda; 0 = ainda a orçar
+  cost          Decimal  @default(0) @db.Decimal(10, 2) // custo (o lucro = venda − custo é calculado)
+  amountPaid    Decimal  @default(0) @db.Decimal(10, 2) // valor pago pelo cliente (o "% pago" é calculado)
+  paymentMethod String?  @db.VarChar(30)
+  paid          Boolean  @default(true) // atalho: pago por inteiro (amountPaid >= total e total > 0)
+  notes         String?  @db.VarChar(500)
+  source        String   @default("manual") @db.VarChar(20) // manual | pedido | importacao
+  orderId       String?  @db.VarChar(36)
+  importBatch   String?  @db.VarChar(36) // identifica a importação (permite desfazer)
+  createdBy     String?  @db.VarChar(120)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([orderId])
+  @@index([importBatch])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ARQUIVOS (artes, logos, PDFs, tabelas de preço). A IA lê o texto extraído.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Attachment {
+  id            String   @id @default(uuid())
+  name          String   @db.VarChar(255) // nome original
+  storedName    String   @db.VarChar(120) // nome no disco (back/uploads)
+  mime          String   @db.VarChar(120)
+  size          Int      @default(0)
+  kind          String   @default("order") @db.VarChar(20) // order | customer | quote | knowledge | chat
+  orderId       String?
+  quoteId       String?
+  customerId    String?
+  conversationId String?
+  extractedText String?  @db.LongText // texto lido do arquivo (PDF, DOCX, XLSX, CSV, TXT)
+  aiEnabled     Boolean  @default(true) // a IA pode usar este arquivo para responder
+  uploadedBy    String?  @db.VarChar(120)
+  createdAt     DateTime @default(now())
+
+  order        Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  quote        Quote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  customer     Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversation WppConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([kind])
+  @@index([orderId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHATSAPP + BOT (Pixel IA)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WppInstance {
+  id        String   @id @default(uuid())
+  phone     String?  @db.VarChar(30)
+  status    String   @default("not_configured") @db.VarChar(30)
+  qrCode    String?  @db.LongText
+  isActive  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model WppBotConfig {
+  id                    String   @id @default(uuid())
+  botEnabled            Boolean  @default(false)
+  useButtons            Boolean  @default(true) // botões nativos do WhatsApp (senão, menu numerado em texto)
+  welcomeMsg            String?  @db.Text
+  offHoursMsg           String?  @db.Text
+  aiEnabled             Boolean  @default(false)
+  aiProvider            String   @default("gemini") @db.VarChar(20) // gemini | openai
+  geminiApiKeyEncrypted String?  @db.Text
+  geminiModel           String   @default("gemini-3.5-flash") @db.VarChar(80)
+  openaiApiKeyEncrypted String?  @db.Text
+  openaiModel           String   @default("gpt-4o-mini") @db.VarChar(80)
+  aiPrompt              String?  @db.Text // orientações extras do administrador para a IA
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+model WppSector {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(100) // Orçamentos, Arte/Criação, Produção, Financeiro…
+  description String?  @db.VarChar(255)
+  attendants  String   @db.Text // JSON: [{ name, phone, available }]
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  conversations WppConversation[]
+}
+
+// Menu do bot: cada nó é uma tela. Tipos: menu | message | sector | ai | end
+model WppFlowNode {
+  id         String   @id @default(uuid())
+  type       String   @db.VarChar(20)
+  title      String   @db.VarChar(160)
+  content    String?  @db.Text
+  options    String?  @db.Text // JSON: [{ key, label, nextNodeId }]
+  sectorId   String?  @db.VarChar(36)
+  nextNodeId String?  @db.VarChar(36)
+  isStart    Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model WppConversation {
+  id             String    @id @default(uuid())
+  sectorId       String?
+  customerId     String?
+  clientPhone    String    @db.VarChar(30)
+  clientJid      String?   @db.VarChar(80) // endereço original no WhatsApp (pode ser @lid)
+  clientName     String?   @db.VarChar(160)
+  attendantId    String?   @db.VarChar(36)
+  attendantName  String?   @db.VarChar(120)
+  attendantPhone String?   @db.VarChar(30) // quando o atendente conversa pelo próprio WhatsApp
+  status         String    @default("bot") @db.VarChar(20) // bot | waiting | active | closed
+  firstMessage   String?   @db.VarChar(1000)
+  subject        String?   @db.VarChar(255)
+  closedBy       String?   @db.VarChar(20) // attendant | client | system
+  queuedAt       DateTime  @default(now())
+  acceptedAt     DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sector      WppSector?   @relation(fields: [sectorId], references: [id])
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  messages    WppMessage[]
+  attachments Attachment[]
+
+  @@index([status])
+  @@index([clientPhone])
+}
+
+model WppMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  fromRole       String   @db.VarChar(20) // client | attendant | bot | system
+  body           String   @db.Text
+  attachmentId   String?  @db.VarChar(36)
+  sentAt         DateTime @default(now())
+
+  conversation WppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+}
+
+// Perguntas e respostas prontas (preço de arte, prazos, horário, endereço…). Respondidas antes da IA.
+model WppKnowledge {
+  id        String   @id @default(uuid())
+  title     String   @db.VarChar(120)
+  phrases   String   @db.Text // uma frase/palavra-chave por linha
+  answer    String   @db.Text
+  action    String   @default("reply") @db.VarChar(60) // reply | menu | handoff:<nome do setor>
+  enabled   Boolean  @default(true)
+  hits      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// O que a IA lembra de cada contato entre conversas
+model WppContactMemory {
+  id         String   @id @default(uuid())
+  phone      String   @unique @db.VarChar(40)
+  name       String?  @db.VarChar(120)
+  topics     String?  @db.Text // JSON: últimos assuntos
+  visits     Int      @default(1)
+  lastSeenAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DADOS DA EMPRESA (uma linha). A IA e as respostas prontas usam estes dados reais.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CompanyProfile {
+  id             String   @id @default(uuid())
+  name           String   @default("Pixel Gráfica Tatuí") @db.VarChar(120)
+  tagline        String?  @db.VarChar(160)
+  document       String?  @db.VarChar(20) // CNPJ (aparece nos PDFs)
+  partners       Json? // divisão do lucro: [{ "name": "Renato", "percent": 30 }, …] (soma 100)
+  address        String?  @db.VarChar(300)
+  phone          String?  @db.VarChar(40)
+  email          String?  @db.VarChar(160)
+  instagram      String?  @db.VarChar(120)
+  website        String?  @db.VarChar(160)
+  hours          String?  @db.VarChar(300) // horário de funcionamento
+  payment        String?  @db.VarChar(500) // formas de pagamento e condições
+  delivery       String?  @db.VarChar(500) // retirada, entrega e frete
+  artService     String?  @db.VarChar(500) // criação de arte: como funciona e valores
+  notes          String?  @db.Text // outras informações que a IA deve saber
+  catalogVersion Int      @default(0) // controle do catálogo inicial semeado
+  updatedAt      DateTime @updatedAt
+}
+
+// Preferências do sistema (uma linha por chave): prazos, termos dos PDFs, categorias, modelos de mensagem…
+model Setting {
+  key       String   @id @db.VarChar(80)
+  value     Json
+  updatedAt DateTime @updatedAt
+}

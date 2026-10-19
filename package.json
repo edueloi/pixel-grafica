@@ -1,0 +1,22 @@
+{
+  "name": "pixel-grafica",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix back && npm install --prefix front",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:push": "npm run db:push --prefix back",
+    "db:seed": "npm run db:seed --prefix back",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --prefix front",
+    "start": "npm run start --prefix back",
+    "wpp": "npm run wpp --prefix back",
+    "dev:apps": "concurrently -n BACK,FRONT -c blue,cyan \"npm run dev --prefix back\" \"npm run dev --prefix front\"",
+    "db:demo": "npm run db:demo --prefix back --",
+    "db:demo:clear": "npm run db:demo:clear --prefix back"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
