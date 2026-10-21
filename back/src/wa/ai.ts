@@ -159,7 +159,7 @@ async function searchFiles(conv: AiConversation, query: string) {
   }).filter((f) => f.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(({ arquivo, trecho }) => ({ arquivo, trecho }));
 }
 
-export // Fila por chave: garante que duas execuções da mesma chave não rodem ao mesmo tempo (um só processo do WhatsApp)
+// Fila por chave: garante que duas execuções da mesma chave não rodem ao mesmo tempo (um só processo do WhatsApp)
 const locks = new Map<string, Promise<unknown>>();
 function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const run = (locks.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
@@ -168,7 +168,7 @@ function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-async function runTool(name: string, args: any, conv: AiConversation, out: AiResult): Promise<unknown> {
+export async function runTool(name: string, args: any, conv: AiConversation, out: AiResult): Promise<unknown> {
   switch (name) {
     case "listar_produtos": {
       const q = String(args?.busca || "").trim();
