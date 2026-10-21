@@ -202,6 +202,38 @@ const dayLabel = (v: string) => {
   return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 };
 
+/** Anexo dentro da conversa: imagem aparece (e amplia), áudio e vídeo tocam, PDF abre aqui, o resto baixa. */
+const AttachmentView: React.FC<{ a: NonNullable<ChatMessage['attachment']>; dark: boolean }> = ({ a, dark }) => {
+  const [open, setOpen] = useState(false);
+  const url = fileUrl(a.id);
+  const isImg = a.mime.startsWith('image/'), isAudio = a.mime.startsWith('audio/'), isVideo = a.mime.startsWith('video/'), isPdf = a.mime.includes('pdf');
+  const link = cn('underline-offset-2 hover:underline', dark ? 'text-white' : 'text-blue-700');
+  return (
+    <div className="space-y-1">
+      {isImg && (
+        <button type="button" className="block" onClick={() => setOpen(true)} aria-label={`Ampliar ${a.name}`}>
+          <img src={url} alt={a.name} loading="lazy" className="max-h-60 max-w-full rounded-lg object-cover" />
+        </button>
+      )}
+      {isAudio && <audio controls preload="none" src={url} className="h-9 w-64 max-w-full" aria-label={`Áudio ${a.name}`} />}
+      {isVideo && <video controls preload="metadata" src={url} className="max-h-60 max-w-full rounded-lg" aria-label={`Vídeo ${a.name}`} />}
+      <div className="flex items-center gap-2 text-[12px]">
+        {!isImg && !isAudio && !isVideo && <FileText size={16} className="shrink-0" />}
+        <span className="break-all">{isAudio ? 'Áudio' : a.name}</span>
+        <span className="text-[11px] opacity-70 whitespace-nowrap">{fileSize(a.size)}</span>
+        {isPdf && <button type="button" className={link} onClick={() => setOpen(true)}>Ver</button>}
+        <a href={fileUrl(a.id, true)} className={link} download>Baixar</a>
+        {!isPdf && !isImg && !isAudio && !isVideo && <a href={url} target="_blank" rel="noreferrer" className={link}>Abrir</a>}
+      </div>
+      {open && (
+        <Modal isOpen onClose={() => setOpen(false)} size="xl" title={a.name} footer={<ModalFooter align="between"><Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Fechar</Button><a href={fileUrl(a.id, true)} download><Button size="sm" variant="outline">Baixar</Button></a></ModalFooter>}>
+          {isImg ? <img src={url} alt={a.name} className="mx-auto max-h-[70vh] max-w-full object-contain" /> : <iframe title={a.name} src={url} className="w-full h-[70vh] bg-slate-100 rounded" />}
+        </Modal>
+      )}
+    </div>
+  );
+};
+
 const Bubble: React.FC<{ m: ChatMessage; first: boolean; onToOrder: (id: string) => void }> = ({ m, first, onToOrder }) => {
   if (m.fromRole === 'system') return <div className="text-center py-1"><span className="inline-block text-[11px] text-slate-500 bg-white/90 border border-slate-200 rounded-full px-3 py-1">{m.body}</span></div>;
   const mine = m.fromRole !== 'client';
@@ -215,9 +247,12 @@ const Bubble: React.FC<{ m: ChatMessage; first: boolean; onToOrder: (id: string)
         {first && m.fromRole === 'attendant' && <p className="text-[10px] font-medium text-blue-100 mb-0.5">Atendente</p>}
         {m.attachment ? (
           <div className="space-y-1">
-            <a href={fileUrl(m.attachment.id)} target="_blank" rel="noreferrer" className={cn('flex items-center gap-2 underline-offset-2 hover:underline', dark ? 'text-white' : 'text-blue-700')}>
-              <FileText size={16} className="shrink-0" /><span className="break-all">{m.attachment.name}</span><span className="text-[11px] opacity-70 whitespace-nowrap">{fileSize(m.attachment.size)}</span>
-            </a>
+            <AttachmentView a={m.attachment} dark={dark} />
+            {(() => {
+              // legenda do cliente/atendente e transcrição do áudio (o texto "📎 nome" automático não precisa repetir)
+              const text = m.body.replace(`📎 ${m.attachment!.name}`, '').replace(/^🎤 Áudio$/, '').trim();
+              return text ? <p className={cn('whitespace-pre-wrap break-words', text.startsWith('🎤') && 'italic opacity-90')}>{waFormat(text, dark ? 'text-white' : 'text-blue-700')}</p> : null;
+            })()}
             {m.fromRole === 'client' && !m.attachment.orderId && <button className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-blue-600" onClick={() => onToOrder(m.attachment!.id)}><FolderInput size={11} />Guardar em um pedido</button>}
           </div>
         ) : <span>{waFormat(m.body, dark ? 'text-white' : 'text-blue-700')}</span>}

@@ -243,7 +243,7 @@ router.get("/files/:id/download", ah(async (req, res) => {
   if (!f || !fs.existsSync(filePath(f.storedName))) throw new HttpError(404, "Arquivo não encontrado.");
   res.setHeader("Content-Type", f.mime);
   res.setHeader("Content-Disposition", `${req.query.download === "1" ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(f.name)}`);
-  fs.createReadStream(filePath(f.storedName)).pipe(res);
+  res.sendFile(filePath(f.storedName), (err) => { if (err && !res.headersSent) res.status(500).end(); });
 }));
 
 router.get("/files/:id/text", ah(async (req, res) => {
