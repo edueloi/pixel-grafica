@@ -93,6 +93,11 @@ export async function sendFile(target: string, file: Buffer, fileName: string, m
   try {
     if (mime.startsWith("image/")) await session!.sock.sendMessage(jid, { image: file, caption, mimetype: mime });
     else if (mime.startsWith("video/")) await session!.sock.sendMessage(jid, { video: file, caption, mimetype: mime });
+    else if (mime.startsWith("audio/")) {
+      // áudio de verdade (nota de voz quando é ogg/opus, como o WhatsApp grava); áudio não tem legenda, então ela vai em texto
+      await session!.sock.sendMessage(jid, { audio: file, mimetype: /ogg|opus/i.test(mime) ? "audio/ogg; codecs=opus" : mime, ptt: /ogg|opus/i.test(mime) });
+      if (caption) await session!.sock.sendMessage(jid, { text: caption });
+    }
     else await session!.sock.sendMessage(jid, { document: file, mimetype: mime || "application/octet-stream", fileName, caption });
     return true;
   } catch (e) { console.error("[wa] erro ao enviar arquivo:", e); return false; }

@@ -5,7 +5,7 @@ import { generateReply, isAiAvailable, transcribeAudio } from "./ai.js";
 import { saveAttachment } from "../lib/files.js";
 import { strip, cut, normalizePhone } from "../lib/text.js";
 import {
-  record, findCustomerByPhone, findAttendantByPhone, handleAttendantMessage, offerConversation, queuePosition,
+  record, findCustomerByPhone, findAttendantByPhone, handleAttendantMessage, handleAttendantMedia, offerConversation, queuePosition,
   clientStates, stateKey, targetOf, clientLabel, parseAttendants, onShift, scheduleLabel, closeIdleActive, realPhone, type ClientState,
 } from "./conversations.js";
 
@@ -221,9 +221,9 @@ export async function handleMessage(msg: any, _sock: any) {
   if (!text && !media) return;
 
   // Mensagem de um atendente cadastrado (aceitar/recusar/conversar pelo bot)?
-  if (!media) {
+  {
     const att = await findAttendantByPhone(clientPhone);
-    if (att && (await handleAttendantMessage(att, text))) return;
+    if (att && (media ? await handleAttendantMedia(att, media, text) : await handleAttendantMessage(att, text))) return;
   }
 
   let conv = await prisma.wppConversation.findFirst({

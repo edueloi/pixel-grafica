@@ -4,7 +4,7 @@ import * as tr from "./transport.js";
 import { digits, samePhone, normalizePhone, cut } from "../lib/text.js";
 import { notifyChange } from "../lib/events.js";
 import fs from "fs";
-import { filePath } from "../lib/files.js";
+import { filePath, saveAttachment } from "../lib/files.js";
 
 // from/to ("HH:MM") e days (0=dom … 6=sáb) são opcionais: sem horário cadastrado, a pessoa atende a qualquer hora.
 export interface Attendant { name: string; phone: string; available: boolean; from?: string; to?: string; days?: number[] }
@@ -274,6 +274,19 @@ export function setClientConversation(target: string, conversationId: string, st
 export const releaseClient = (target: string) => { clientStates.delete(stateKey(target)); };
 
 // ── Atendente falando com o bot pelo WhatsApp ────────────────────────────────
+// Foto, documento, vídeo ou áudio que o atendente manda pelo próprio WhatsApp: vai para o cliente do atendimento dele
+export async function handleAttendantMedia(att: { name: string; phone: string }, media: { buffer: Buffer; mime: string; fileName: string; kind: string }, caption: string): Promise<boolean> {
+  const mine = await prisma.wppConversation.findFirst({ where: { status: "active", attendantPhone: att.phone }, orderBy: { acceptedAt: "desc" } });
+  if (!mine) return false;
+  const saved = await saveAttachment({ buffer: media.buffer, name: media.fileName, mime: media.mime, kind: "chat", conversationId: mine.id, customerId: mine.customerId, uploadedBy: att.name });
+  const ok = await tr.sendFile(targetOf(mine), media.buffer, media.fileName, media.mime, caption || undefined);
+  if (!ok) { await tr.sendText(att.phone, "⚠️ Não consegui enviar este arquivo ao cliente. Tente de novo."); return true; }
+  const label = media.kind === "audio" ? "🎤 Áudio" : `📎 ${saved.name}`;
+  await record(mine.id, "attendant", caption ? `${label}
+${caption}` : label, saved.id);
+  return true;
+}
+
 export async function handleAttendantMessage(att: { name: string; phone: string; id?: string }, text: string): Promise<boolean> {
   const t = text.trim();
   const pending = offers.get(att.phone) ?? [];
