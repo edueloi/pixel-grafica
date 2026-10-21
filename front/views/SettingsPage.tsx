@@ -30,7 +30,7 @@ const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [tab, setTab] = useUrlTab(tabs.map((t) => t.id) as TabId[], 'geral');
-  const { data, loading, error, reload } = useLoad(() => api.get<Settings>('/settings'), []);
+  const { data, loading, error, reload } = useLoad(() => api.get<Settings>('/settings'), [], { live: false });
   const [s, setS] = useState<Settings | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);

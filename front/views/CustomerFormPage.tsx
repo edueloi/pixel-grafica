@@ -16,7 +16,7 @@ const CustomerFormPage: React.FC = () => {
   const isEditing = !!id;
   const navigate = useNavigate();
   const toast = useToast();
-  const { data, loading, error, reload } = useLoad(() => (isEditing ? api.get<Customer>(`/customers/${id}`) : Promise.resolve(null)), [id]);
+  const { data, loading, error, reload } = useLoad(() => (isEditing ? api.get<Customer>(`/customers/${id}`) : Promise.resolve(null)), [id], { live: false });
   const [f, setF] = useState(blank);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');

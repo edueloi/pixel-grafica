@@ -20,7 +20,7 @@ const OrderFormPage: React.FC = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const toast = useToast();
-  const meta = useLoad(() => Promise.all([api.get<Customer[]>('/customers'), api.get<Product[]>('/products'), isEditing ? api.get<Order>(`/orders/${id}`) : Promise.resolve(null)]), [id]);
+  const meta = useLoad(() => Promise.all([api.get<Customer[]>('/customers'), api.get<Product[]>('/products'), isEditing ? api.get<Order>(`/orders/${id}`) : Promise.resolve(null)]), [id], { live: false });
 
   const [customerId, setCustomerId] = useState(params.get('cliente') ?? '');
   const [items, setItems] = useState<LineItem[]>([]);

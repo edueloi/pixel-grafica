@@ -20,7 +20,7 @@ const ProductFormPage: React.FC = () => {
   const { data, loading, error, reload } = useLoad(async () => ({
     product: isEditing ? await api.get<Product>(`/products/${id}`) : null,
     categories: [...new Set((await api.get<Product[]>('/products?all=1')).map((p) => p.category))],
-  }), [id]);
+  }), [id], { live: false });
 
   const [f, setF] = useState({ name: '', category: 'Geral', unit: 'un', pricingMode: 'unit' as 'unit' | 'package', price: '', minQty: '1', leadTime: '', description: '', howItWorks: '', active: true });
   const [tiers, setTiers] = useState<Tier[]>([]);

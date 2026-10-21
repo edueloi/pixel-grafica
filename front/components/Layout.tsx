@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Menu, X, LogOut, ChevronRight, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLive, LIVE_EVENT } from '../src/hooks/useLive';
 import type { User, WppSession } from '../types';
 import { api } from '../api';
 import { cn } from '../src/lib/utils';
@@ -23,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({ currentUser, onLogout }) => {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [wpp, setWpp] = useState<WppSession['status'] | null>(null);
 
+  useLive();
   const canSeeWpp = currentUser.role === 'admin' || currentUser.role === 'atendente';
   const visibleSections = getVisibleSections(navigationSections, currentUser);
 
@@ -35,8 +37,9 @@ const Layout: React.FC<LayoutProps> = ({ currentUser, onLogout }) => {
       api.get<WppSession>('/wpp/status').then((r) => alive && setWpp(r.status)).catch(() => alive && setWpp(null));
     };
     tick();
-    const t = setInterval(tick, 8000);
-    return () => { alive = false; clearInterval(t); };
+    const t = setInterval(tick, 30000); // reserva; o normal é atualizar pelo aviso em tempo real
+    window.addEventListener(LIVE_EVENT, tick);
+    return () => { alive = false; clearInterval(t); window.removeEventListener(LIVE_EVENT, tick); };
   }, [canSeeWpp]);
 
   useEffect(() => {

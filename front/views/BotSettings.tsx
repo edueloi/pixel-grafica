@@ -31,7 +31,7 @@ const SaveBar: React.FC<{ dirty: boolean; saving: boolean; onSave: () => void }>
 // ── Geral ────────────────────────────────────────────────────────────────────
 const General: React.FC = () => {
   const toast = useToast();
-  const { data, setData, loading, error, reload } = useLoad(() => api.get<BotConfig>('/bot/config'), []);
+  const { data, setData, loading, error, reload } = useLoad(() => api.get<BotConfig>('/bot/config'), [], { live: false });
   const [saving, setSaving] = useState<string | null>(null);
 
   const toggle = async (key: 'botEnabled' | 'useButtons', value: boolean) => {
@@ -380,7 +380,7 @@ interface TestResult { ok: boolean; provider: AiProvider; model: string; reply?:
 
 const Intelligence: React.FC = () => {
   const toast = useToast();
-  const { data: cfg, setData, loading, error, reload } = useLoad(() => api.get<BotConfig>('/bot/config'), []);
+  const { data: cfg, setData, loading, error, reload } = useLoad(() => api.get<BotConfig>('/bot/config'), [], { live: false });
   const [draft, setDraft] = useState<{ provider: AiProvider; enabled: boolean; prompt: string; geminiModel: string; openaiModel: string; geminiKey: string; openaiKey: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -494,7 +494,7 @@ const companyFields: { key: keyof Company; label: string; rows?: number; hint?: 
 
 const CompanyTab: React.FC = () => {
   const toast = useToast();
-  const { data, loading, error, reload } = useLoad(() => api.get<Company>('/company'), []);
+  const { data, loading, error, reload } = useLoad(() => api.get<Company>('/company'), [], { live: false });
   const [draft, setDraft] = useState<Partial<Company> | null>(null);
   const [saving, setSaving] = useState(false);
   if (loading && !data) return <Loading />;

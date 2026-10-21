@@ -27,7 +27,7 @@ const ServiceFormPage: React.FC = () => {
     record: isEditing ? await api.get<Detail>(`/services/${id}`).catch((e) => { if (e?.status === 404) return null; throw e; }) : null,
     customers: await api.get<Customer[]>('/customers'),
     partners: isEditing ? null : (await api.get<{ partners: Partner[] }>('/services/partners')).partners,
-  }), [id]);
+  }), [id], { live: false });
 
   const [f, setF] = useState({ date: today(), customerName: '', description: '', category: '', quantity: '1', unitPrice: '', cost: '', amountPaid: '', paymentMethod: '', notes: '' });
   const [saving, setSaving] = useState(false);

@@ -2,6 +2,7 @@
 import { prisma } from "../db.js";
 import * as tr from "./transport.js";
 import { digits, samePhone, normalizePhone, cut } from "../lib/text.js";
+import { notifyChange } from "../lib/events.js";
 
 // from/to ("HH:MM") e days (0=dom … 6=sáb) são opcionais: sem horário cadastrado, a pessoa atende a qualquer hora.
 export interface Attendant { name: string; phone: string; available: boolean; from?: string; to?: string; days?: number[] }
@@ -54,6 +55,7 @@ export const clientLabel = (c: ConvLike) => c.clientName || (realPhone(c) ? c.cl
 export async function record(conversationId: string, fromRole: "client" | "bot" | "attendant" | "system", body: string, attachmentId?: string | null) {
   await prisma.wppMessage.create({ data: { conversationId, fromRole, body, attachmentId: attachmentId ?? null } });
   await prisma.wppConversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }).catch(() => {});
+  notifyChange(); // painel mostra a mensagem/mudança na hora
 }
 
 // Cliente cadastrado com este WhatsApp
