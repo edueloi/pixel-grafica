@@ -101,7 +101,7 @@ const CustomerDetail: React.FC = () => {
               )}
             </ContentCard>
           )}
-          {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel customerId={c.id} kind="customer" emptyHint="Logos, artes e documentos deste cliente. A IA pode consultar os que estiverem marcados." /></ContentCard>}
+          {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel customerId={c.id} emptyHint="Logos, artes e documentos deste cliente, inclusive o que ele enviar pelo WhatsApp. A IA pode consultar os que estiverem marcados." /></ContentCard>}
         </Tabs>
       </div>
     </PageWrapper>

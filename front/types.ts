@@ -41,8 +41,8 @@ export interface Company {
 
 export interface FileItem {
   id: string; name: string; mime: string; size: number; kind: 'order' | 'customer' | 'quote' | 'knowledge' | 'chat'; aiEnabled: boolean;
-  readable?: boolean; uploadedBy?: string | null; createdAt: string; orderId?: string | null; customerId?: string | null;
-  customer?: { name: string } | null; order?: { number: number } | null;
+  readable?: boolean; uploadedBy?: string | null; createdAt: string; orderId?: string | null; quoteId?: string | null; customerId?: string | null;
+  customer?: { name: string } | null; order?: { number: number } | null; quote?: { number: number } | null;
 }
 
 export interface Dashboard {

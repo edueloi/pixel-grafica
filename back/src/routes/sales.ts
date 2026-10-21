@@ -92,13 +92,16 @@ router.post("/quotes/:id/order", ah(async (req, res) => {
   if (await prisma.order.findFirst({ where: { quoteId: quote.id } })) throw new HttpError(409, "Este orçamento já virou pedido.");
   const order = await prisma.$transaction(async (tx) => {
     await tx.quote.update({ where: { id: quote.id }, data: { status: "aprovado" } });
-    return tx.order.create({
+    const created = await tx.order.create({
       data: {
         customerId: quote.customerId, quoteId: quote.id, total: quote.total, notes: quote.notes, dueDate: date(req.body?.dueDate), createdById: req.user!.id,
         items: { create: quote.items.map((i, n) => ({ sortOrder: n, productId: i.productId, description: i.description, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total })) },
         events: { create: { status: "aguardando_arquivo", note: `Criado a partir do orçamento #${quote.number}`, userName: req.user!.name } },
       },
     });
+    // os arquivos que o cliente mandou para este orçamento passam a valer também no pedido
+    await tx.attachment.updateMany({ where: { quoteId: quote.id, orderId: null }, data: { orderId: created.id } });
+    return created;
   });
   res.status(201).json(order);
 }));
@@ -201,10 +204,16 @@ const fileSelect = { id: true, name: true, mime: true, size: true, kind: true, a
 
 router.get("/files", ah(async (req, res) => {
   const q = str(req.query.q, 100), kind = str(req.query.kind, 20);
-  const where: any = { ...(kind ? { kind } : {}), ...(req.query.orderId ? { orderId: String(req.query.orderId) } : {}), ...(req.query.customerId ? { customerId: String(req.query.customerId) } : {}), ...(q ? { name: { contains: q } } : {}) };
+  const cid = req.query.customerId ? String(req.query.customerId) : null;
+  const where: any = {
+    ...(kind ? { kind } : {}), ...(req.query.orderId ? { orderId: String(req.query.orderId) } : {}), ...(req.query.quoteId ? { quoteId: String(req.query.quoteId) } : {}),
+    // arquivos do cliente = os cadastrados nele + os que ele mandou pelo WhatsApp
+    ...(cid ? { OR: [{ customerId: cid }, { conversation: { customerId: cid } }] } : {}),
+    ...(q ? { name: { contains: q } } : {}),
+  };
   const rows = await prisma.attachment.findMany({
     where, orderBy: { createdAt: "desc" }, take: 300,
-    select: { ...fileSelect, extractedText: false, customer: { select: { name: true } }, order: { select: { number: true } } },
+    select: { ...fileSelect, extractedText: false, customer: { select: { name: true } }, order: { select: { number: true } }, quote: { select: { number: true } } },
   });
   // diz se a IA conseguiu ler o conteúdo, sem mandar o texto inteiro
   const readable = new Set((await prisma.attachment.findMany({ where: { id: { in: rows.map((r) => r.id) }, extractedText: { not: null } }, select: { id: true } })).map((r) => r.id));
@@ -244,6 +253,13 @@ router.patch("/files/:id", ah(async (req, res) => {
   const data: any = {};
   if (req.body?.aiEnabled !== undefined) data.aiEnabled = !!req.body.aiEnabled;
   if (str(req.body?.name, 255)) data.name = str(req.body.name, 255);
+  // vínculo com orçamento/pedido (null desvincula); o arquivo continua no cliente e na conversa
+  for (const k of ["quoteId", "orderId"] as const) {
+    if (req.body?.[k] === undefined) continue;
+    const id = req.body[k] === null ? null : str(req.body[k], 36);
+    if (id && !(k === "quoteId" ? await prisma.quote.findUnique({ where: { id }, select: { id: true } }) : await prisma.order.findUnique({ where: { id }, select: { id: true } }))) throw new HttpError(404, k === "quoteId" ? "Orçamento não encontrado." : "Pedido não encontrado.");
+    data[k] = id;
+  }
   res.json(await prisma.attachment.update({ where: { id: req.params.id }, data, select: fileSelect }));
 }));
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Download, ExternalLink, Trash2, FileText, Image as ImageIcon, File as FileIcon, Eye, Sparkles, Loader2 } from 'lucide-react';
+import { Upload, Download, ExternalLink, Trash2, FileText, Image as ImageIcon, File as FileIcon, Eye, Sparkles, Loader2, Link2, Unlink } from 'lucide-react';
 import { Button, IconButton, Modal, ModalFooter, ConfirmModal, Badge, EmptyState, Switch, useToast } from './ui';
 import { api, errMsg, fileUrl } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
@@ -21,18 +21,46 @@ export const AiTextModal: React.FC<{ file: FileItem; onClose: () => void }> = ({
   );
 };
 
-interface Props { orderId?: string; customerId?: string; kind?: FileItem['kind']; query?: string; allowUpload?: boolean; emptyHint?: string; aiToggle?: boolean }
+/** Escolhe, entre os arquivos do cliente (cadastrados e recebidos no WhatsApp), os que ainda não estão neste orçamento/pedido. */
+const PickCustomerFile: React.FC<{ customerId: string; linkKey: 'orderId' | 'quoteId'; linkId: string; onPick: (f: FileItem) => Promise<void>; onClose: () => void }> = ({ customerId, linkKey, linkId, onPick, onClose }) => {
+  const { data, loading, reload } = useLoad(() => api.get<FileItem[]>(`/files?customerId=${customerId}`), [customerId]);
+  const list = (data ?? []).filter((f) => f[linkKey] !== linkId);
+  return (
+    <Modal isOpen onClose={onClose} size="lg" title="Arquivos do cliente" footer={<ModalFooter align="left"><Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button></ModalFooter>}>
+      {loading && !data && <div role="status" className="flex items-center gap-2 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Carregando…</div>}
+      {data && list.length === 0 && <p className="text-xs text-slate-500">Nenhum outro arquivo deste cliente para anexar.</p>}
+      <ul className="divide-y divide-slate-100">
+        {list.map((f) => (
+          <li key={f.id} className="flex items-center gap-2 py-2">
+            <div className="min-w-0 flex-1"><p className="text-[13px] text-slate-800 truncate">{f.name}</p><p className="text-[11px] text-slate-500">{[fileSize(f.size), dateLabel(f.createdAt), f.kind === 'chat' ? 'WhatsApp' : ''].filter(Boolean).join(' · ')}</p></div>
+            <Button size="xs" variant="outline" onClick={async () => { await onPick(f); reload(true); }}>Anexar</Button>
+          </li>
+        ))}
+      </ul>
+    </Modal>
+  );
+};
+
+interface Props { orderId?: string; quoteId?: string; customerId?: string; pickFromCustomerId?: string; kind?: FileItem['kind']; query?: string; allowUpload?: boolean; emptyHint?: string; aiToggle?: boolean }
 
 /** Lista + envio de arquivos. Usada no pedido, no cliente e na biblioteca de arquivos. */
-export const FilesPanel: React.FC<Props> = ({ orderId, customerId, kind, query = '', allowUpload = true, emptyHint, aiToggle = true }) => {
+export const FilesPanel: React.FC<Props> = ({ orderId, quoteId, customerId, pickFromCustomerId, kind, query = '', allowUpload = true, emptyHint, aiToggle = true }) => {
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
-  const params = new URLSearchParams({ ...(orderId ? { orderId } : {}), ...(customerId ? { customerId } : {}), ...(kind ? { kind } : {}), ...(query ? { q: query } : {}) }).toString();
+  const params = new URLSearchParams({ ...(orderId ? { orderId } : {}), ...(quoteId ? { quoteId } : {}), ...(customerId ? { customerId } : {}), ...(kind ? { kind } : {}), ...(query ? { q: query } : {}) }).toString();
   const { data, loading, error, reload } = useLoad(() => api.get<FileItem[]>(`/files${params ? `?${params}` : ''}`), [params]);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState<FileItem | null>(null);
   const [reading, setReading] = useState<FileItem | null>(null);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  // arquivo do cliente (inclui os do WhatsApp) referenciado neste orçamento/pedido
+  const linkKey = orderId ? 'orderId' : quoteId ? 'quoteId' : null;
+  const linkId = orderId ?? quoteId ?? null;
+  const link = async (f: FileItem, to: string | null) => {
+    if (!linkKey) return;
+    try { await api.patch(`/files/${f.id}`, { [linkKey]: to }); toast.success(to ? 'Arquivo anexado.' : 'Arquivo desvinculado.'); reload(true); } catch (e) { toast.error(errMsg(e)); }
+  };
 
   const upload = async (files: FileList | null) => {
     if (!files?.length || uploading) return;
@@ -41,8 +69,9 @@ export const FilesPanel: React.FC<Props> = ({ orderId, customerId, kind, query =
       const form = new FormData();
       Array.from(files).forEach((f) => form.append('files', f));
       if (orderId) form.append('orderId', orderId);
+      if (quoteId) form.append('quoteId', quoteId);
       if (customerId) form.append('customerId', customerId);
-      form.append('kind', kind ?? (orderId ? 'order' : customerId ? 'customer' : 'knowledge'));
+      form.append('kind', kind ?? (orderId ? 'order' : quoteId ? 'quote' : customerId ? 'customer' : 'knowledge'));
       await api.post('/files', form);
       toast.success(files.length > 1 ? 'Arquivos enviados.' : 'Arquivo enviado.');
       reload(true);
@@ -65,6 +94,7 @@ export const FilesPanel: React.FC<Props> = ({ orderId, customerId, kind, query =
         <div>
           <input ref={input} type="file" multiple className="hidden" aria-label="Escolher arquivos" onChange={(e) => upload(e.target.files)} />
           <Button variant="outline" size="sm" loading={uploading} iconLeft={<Upload size={14} />} onClick={() => input.current?.click()}>Enviar arquivos</Button>
+          {pickFromCustomerId && linkKey && <Button variant="outline" size="sm" className="ml-2" iconLeft={<Link2 size={14} />} onClick={() => setPicking(true)}>Anexar arquivo do cliente</Button>}
           <span className="text-[11px] text-slate-500 ml-2">PDF, Word, Excel, imagens e artes (até 100 MB)</span>
         </div>
       )}
@@ -80,7 +110,7 @@ export const FilesPanel: React.FC<Props> = ({ orderId, customerId, kind, query =
                 <span className="w-8 h-8 rounded-md border border-blue-100 bg-blue-50 text-blue-600 flex items-center justify-center shrink-0"><Icon size={16} /></span>
                 <div className="min-w-0 flex-1 basis-48">
                   <p className="text-[13px] text-slate-800 truncate">{f.name}</p>
-                  <p className="text-[11px] text-slate-500 truncate">{[fileSize(f.size), dateLabel(f.createdAt), f.uploadedBy, f.customer?.name, f.order ? `Pedido #${f.order.number}` : ''].filter(Boolean).join(' · ')}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{[fileSize(f.size), dateLabel(f.createdAt), f.uploadedBy, f.customer?.name, f.quote ? `Orçamento #${f.quote.number}` : '', f.order ? `Pedido #${f.order.number}` : ''].filter(Boolean).join(' · ')}</p>
                 </div>
                 {aiToggle && (
                   <label className="flex items-center gap-1.5 text-[11px] text-slate-500" title={f.readable ? 'A IA consulta o texto deste arquivo' : 'Sem texto legível: a IA não consegue consultar'}>
@@ -93,6 +123,7 @@ export const FilesPanel: React.FC<Props> = ({ orderId, customerId, kind, query =
                   {f.readable && <IconButton variant="ghost" size="xs" aria-label={`Ver texto lido de ${f.name}`} title="Ver o que a IA lê" onClick={() => setReading(f)}><Eye /></IconButton>}
                   <IconButton variant="ghost" size="xs" aria-label={`Abrir ${f.name}`} title="Abrir" onClick={() => window.open(fileUrl(f.id), '_blank')}><ExternalLink /></IconButton>
                   <IconButton variant="ghost" size="xs" aria-label={`Baixar ${f.name}`} title="Baixar" onClick={() => window.open(fileUrl(f.id, true), '_blank')}><Download /></IconButton>
+                  {linkKey && pickFromCustomerId && (f.kind === 'chat' || f.kind === 'customer') && <IconButton variant="ghost" size="xs" aria-label={`Desvincular ${f.name}`} title="Tirar daqui (o arquivo continua no cliente)" onClick={() => link(f, null)}><Unlink /></IconButton>}
                   <IconButton variant="ghost" size="xs" aria-label={`Excluir ${f.name}`} title="Excluir" onClick={() => setRemoving(f)}><Trash2 /></IconButton>
                 </div>
               </li>
@@ -100,6 +131,7 @@ export const FilesPanel: React.FC<Props> = ({ orderId, customerId, kind, query =
           })}
         </ul>
       )}
+      {picking && pickFromCustomerId && linkKey && <PickCustomerFile customerId={pickFromCustomerId} linkKey={linkKey} linkId={linkId!} onPick={async (f) => { await link(f, linkId); }} onClose={() => setPicking(false)} />}
       {reading && <AiTextModal file={reading} onClose={() => setReading(null)} />}
       <ConfirmModal isOpen={!!removing} onClose={() => setRemoving(null)} onConfirm={remove} loading={busy} variant="danger" title="Excluir arquivo?" confirmLabel="Excluir arquivo"
         message={`"${removing?.name ?? ''}" será apagado do sistema. Não dá para desfazer.`} />

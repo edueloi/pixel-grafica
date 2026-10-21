@@ -22,6 +22,7 @@ const tabs = [
 ] as const;
 const tabIds = tabs.map((t) => t.id);
 const flow = orderStages.filter((s) => s.id !== 'cancelado');
+const prevOf = (s: OrderStatus): OrderStatus | null => { const i = flow.findIndex((x) => x.id === s); return i > 0 ? flow[i - 1].id : null; };
 const nextOf = (s: OrderStatus): OrderStatus | null => { const i = flow.findIndex((x) => x.id === s); return i >= 0 && i < flow.length - 1 ? flow[i + 1].id : null; };
 
 /** Linha do tempo das etapas, para ver de relance em que ponto está o pedido. */
@@ -78,6 +79,7 @@ const OrderDetail: React.FC = () => {
   const st = stageOf(o.status);
   const remaining = Math.max(0, o.total - o.paid);
   const next = nextOf(o.status);
+  const prev = prevOf(o.status);
   const refresh = () => { reload(true); setPdfKey((k) => k + 1); };
 
   const move = async (to: OrderStatus, withNotify: boolean, msg: string) => {
@@ -129,8 +131,11 @@ const OrderDetail: React.FC = () => {
               {o.status !== 'cancelado' && (
                 <PanelCard title="Andamento" description="Mova a ordem de serviço de etapa e, se quiser, avise o cliente pelo WhatsApp.">
                   <div className="space-y-3">
-                    {next && !stage && (
-                      <Button size="sm" loading={moving} iconRight={<ArrowRight size={14} />} onClick={() => setStage(next)}>Avançar para “{stageOf(next).label}”</Button>
+                    {!stage && (next || prev) && (
+                      <div className="flex flex-wrap gap-2">
+                        {prev && <Button size="sm" variant="outline" loading={moving} onClick={() => setStage(prev)}>← Voltar para “{stageOf(prev).label}”</Button>}
+                        {next && <Button size="sm" loading={moving} iconRight={<ArrowRight size={14} />} onClick={() => setStage(next)}>Avançar para “{stageOf(next).label}”</Button>}
+                      </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Select label="Mover para" value={stage} onChange={(e) => setStage(e.target.value as OrderStatus)} placeholder="Escolha a etapa" options={orderStages.filter((s) => s.id !== o.status).map((s) => ({ value: s.id, label: s.label }))} />
@@ -168,7 +173,7 @@ const OrderDetail: React.FC = () => {
             </div>
           )}
           {tab === 'pagamentos' && <PaymentsPanel order={o} company={name} settings={settings} onChanged={refresh} />}
-          {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel orderId={o.id} kind="order" emptyHint="Anexe a arte, o PDF final ou o arquivo enviado pelo cliente." /></ContentCard>}
+          {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel orderId={o.id} kind="order" pickFromCustomerId={o.customer.id} emptyHint="Anexe a arte, o PDF final ou o arquivo enviado pelo cliente." /></ContentCard>}
           {tab === 'documento' && (
             <ContentCard padding="none" className="overflow-hidden">
               <iframe key={pdfKey} title={`PDF da ordem de serviço ${o.number}`} src={`${pdfUrl('orders', o.id)}#toolbar=0&navpanes=0`} className="w-full h-[78vh] bg-slate-100" />
