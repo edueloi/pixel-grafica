@@ -88,6 +88,13 @@ export const FilesPanel: React.FC<Props> = ({ orderId, quoteId, customerId, pick
     catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
   };
 
+  // o que o cliente mandou fica separado do que a gráfica produziu/enviou
+  const sections = [
+    { title: 'Enviados pelo cliente', items: (data ?? []).filter((f) => f.fromClient) },
+    { title: 'Da gráfica (artes, orçamentos e documentos)', items: (data ?? []).filter((f) => !f.fromClient) },
+  ].filter((s) => s.items.length);
+  const showTitles = sections.length > 1 || sections[0]?.items[0]?.fromClient === true;
+
   return (
     <div className="space-y-3">
       {allowUpload && (
@@ -101,9 +108,11 @@ export const FilesPanel: React.FC<Props> = ({ orderId, quoteId, customerId, pick
       {loading && !data && <div role="status" className="flex items-center gap-2 text-sm text-slate-500 py-4"><Loader2 size={16} className="animate-spin" />Carregando arquivos…</div>}
       {error && <EmptyState icon={FileIcon} title="Não foi possível carregar os arquivos" description={error} action={<Button size="sm" onClick={() => reload()}>Tentar novamente</Button>} />}
       {data && data.length === 0 && <EmptyState icon={FileIcon} title="Nenhum arquivo" description={emptyHint ?? 'Envie o primeiro arquivo.'} />}
-      {data && data.length > 0 && (
+      {data && sections.map((sec) => (
+        <div key={sec.title} className="space-y-1.5">
+          {showTitles && <h4 className="text-xs font-semibold text-slate-700">{sec.title} <span className="font-normal text-slate-400">({sec.items.length})</span></h4>}
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
-          {data.map((f) => {
+          {sec.items.map((f) => {
             const Icon = iconFor(f.mime);
             return (
               <li key={f.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5">
@@ -130,7 +139,8 @@ export const FilesPanel: React.FC<Props> = ({ orderId, quoteId, customerId, pick
             );
           })}
         </ul>
-      )}
+        </div>
+      ))}
       {picking && pickFromCustomerId && linkKey && <PickCustomerFile customerId={pickFromCustomerId} linkKey={linkKey} linkId={linkId!} onPick={async (f) => { await link(f, linkId); }} onClose={() => setPicking(false)} />}
       {reading && <AiTextModal file={reading} onClose={() => setReading(null)} />}
       <ConfirmModal isOpen={!!removing} onClose={() => setRemoving(null)} onConfirm={remove} loading={busy} variant="danger" title="Excluir arquivo?" confirmLabel="Excluir arquivo"

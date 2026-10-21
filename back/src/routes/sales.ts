@@ -217,7 +217,9 @@ router.get("/files", ah(async (req, res) => {
   });
   // diz se a IA conseguiu ler o conteúdo, sem mandar o texto inteiro
   const readable = new Set((await prisma.attachment.findMany({ where: { id: { in: rows.map((r) => r.id) }, extractedText: { not: null } }, select: { id: true } })).map((r) => r.id));
-  res.json(rows.map((r) => ({ ...r, readable: readable.has(r.id) })));
+  // arquivo que o cliente mandou pelo WhatsApp (o resto foi produzido/enviado pela gráfica)
+  const fromClient = new Set((await prisma.wppMessage.findMany({ where: { attachmentId: { in: rows.map((r) => r.id) }, fromRole: "client" }, select: { attachmentId: true } })).map((m) => m.attachmentId));
+  res.json(rows.map((r) => ({ ...r, readable: readable.has(r.id), fromClient: fromClient.has(r.id) })));
 }));
 
 router.post("/files", upload.array("files", 10), ah(async (req, res) => {
