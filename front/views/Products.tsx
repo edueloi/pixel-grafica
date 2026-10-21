@@ -7,6 +7,8 @@ import {
 } from '../components/ui';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
+import { useBulk } from '../src/hooks/useBulk';
+import { BulkBar } from '../components/BulkBar';
 import { brl, normalizeText, unitLabel } from '../utils/format';
 import type { Product } from '../types';
 
@@ -26,6 +28,8 @@ const Products: React.FC = () => {
     return (data ?? []).filter((p) => (category === 'todas' || p.category === category) && (!q || normalizeText(`${p.name} ${p.category} ${p.description ?? ''}`).includes(q)));
   }, [data, search, category]);
   const pag = usePagination(filtered, 15);
+  const bulk = useBulk(pag.paginatedData.map((x) => x.id), filtered.map((x) => x.id));
+  const byId = new Map((filtered).map((x) => [x.id, x]));
 
   const remove = async () => {
     if (!removing || busy) return;
@@ -54,10 +58,11 @@ const Products: React.FC = () => {
             {(search || category !== 'todas') && <Button variant="ghost" size="xs" onClick={() => { setSearch(''); setCategory('todas'); }}>Limpar filtros</Button>}
           </FilterLineSection>
         </FilterLine>
+        <BulkBar resource="products" noun="produtos" ids={bulk.ids} names={(id) => { const x = byId.get(id); return x ? x.name : id; }} totalCount={filtered.length} onSelectAll={bulk.selectAll} onClear={bulk.clear} onDone={() => { bulk.clear(); reload(true); }} deleteNote="Produtos já usados em orçamentos ou ordens de serviço não são apagados: ficam inativos." canToggleActive />
 
         <ContentCard padding="none">
           {error ? <EmptyState icon={Package} title="Não foi possível carregar os produtos" description={error} action={<Button onClick={() => reload()}>Tentar novamente</Button>} /> : (
-            <GridTable<Product>
+            <GridTable<Product> selectedIds={bulk.selected} onToggleSelect={bulk.toggle} onToggleSelectAll={bulk.togglePage}
               noDesktopCard keyExtractor={(p) => p.id} data={pag.paginatedData} isLoading={loading} onRowClick={(p) => navigate(`/produtos/${p.id}`)}
               emptyMessage={<EmptyState icon={Package} title={search || category !== 'todas' ? 'Nenhum produto encontrado' : 'Nenhum produto ainda'} description={search || category !== 'todas' ? 'Ajuste os filtros.' : 'Cadastre os produtos e preços da gráfica.'} />}
               pagination={{ total: filtered.length, page: pag.page, pageSize: pag.pageSize, onPageChange: pag.setPage, onPageSizeChange: pag.setPageSize }}

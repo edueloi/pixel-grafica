@@ -7,6 +7,8 @@ import {
 } from '../components/ui';
 import { api } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
+import { useBulk } from '../src/hooks/useBulk';
+import { BulkBar } from '../components/BulkBar';
 import { brl, dateLabel } from '../utils/format';
 import type { ServicesResponse, ServiceRecord } from '../types';
 
@@ -55,6 +57,8 @@ const Services: React.FC = () => {
   const items = data?.items ?? [];
   const partners = data?.partners ?? [];
   const pag = usePagination(items, 15);
+  const bulk = useBulk(pag.paginatedData.map((x) => x.id), items.map((x) => x.id));
+  const byId = new Map((items).map((x) => [x.id, x]));
   const s = data?.summary;
   const filtered = search || status !== 'todos' || hasPeriod;
 
@@ -101,6 +105,7 @@ const Services: React.FC = () => {
             <Button variant={hasPeriod ? 'outline' : 'ghost'} size="xs" onClick={() => setPeriod(null)}>Todo o período</Button>
           </FilterLineSection>
         </FilterLine>
+        <BulkBar resource="services" noun="serviços" ids={bulk.ids} names={(id) => { const x = byId.get(id); return x ? `${x.customerName} — ${x.description}` : id; }} totalCount={items.length} onSelectAll={bulk.selectAll} onClear={bulk.clear} onDone={() => { bulk.clear(); reload(true); }} deleteNote="Os lançamentos saem do controle e dos totais. Não dá para desfazer." />
         {data?.truncated && <Alert variant="warning" title="Mostrando só os 3.000 mais recentes">Use o filtro de período para ver os demais. Os totais acima consideram todos os serviços do filtro.</Alert>}
 
         <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500" aria-label="Legenda das cores">
@@ -110,7 +115,7 @@ const Services: React.FC = () => {
 
         <ContentCard padding="none">
           {error ? <EmptyState icon={Wrench} title="Não foi possível carregar os serviços" description={error} action={<Button onClick={() => reload()}>Tentar novamente</Button>} /> : (
-            <GridTable<ServiceRecord>
+            <GridTable<ServiceRecord> selectedIds={bulk.selected} onToggleSelect={bulk.toggle} onToggleSelectAll={bulk.togglePage}
               noDesktopCard keyExtractor={(r) => r.id} data={pag.paginatedData} isLoading={loading} onRowClick={(r) => navigate(`/servicos/${r.id}`)} tableMinWidth={1100}
               getRowClassName={(r) => (stateOf(r) === 'pago' ? 'bg-emerald-50/80 hover:bg-emerald-100/70' : 'bg-amber-50/80 hover:bg-amber-100/70')}
               emptyMessage={<EmptyState icon={Wrench} title={filtered ? 'Nenhum serviço neste filtro' : 'Nenhum serviço registrado ainda'}

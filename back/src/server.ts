@@ -13,6 +13,7 @@ import { router as documentsRouter } from "./routes/documents.js";
 import { router as settingsRouter } from "./routes/settings.js";
 import { HttpError } from "./routes/util.js";
 import { sseHandler, broadcastChange } from "./lib/events.js";
+import { router as bulkRouter } from "./routes/bulk.js";
 import { isWhatsAppLocal, startLocalWhatsApp } from "./wa/index.js";
 
 const PORT = Number(process.env.PORT) || 3100;
@@ -33,7 +34,7 @@ app.post("/api/internal/notify", (req, res) => {
   broadcastChange(); res.status(204).end();
 });
 app.use("/api", publicRouter);
-app.use("/api", requireAuth, coreRouter, salesRouter, wppRouter, servicesRouter, documentsRouter, settingsRouter);
+app.use("/api", requireAuth, coreRouter, salesRouter, wppRouter, servicesRouter, documentsRouter, settingsRouter, bulkRouter);
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "Rota não encontrada." }));
 

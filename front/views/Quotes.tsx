@@ -7,6 +7,8 @@ import {
 } from '../components/ui';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
+import { useBulk } from '../src/hooks/useBulk';
+import { BulkBar } from '../components/BulkBar';
 import { brl, dateLabel, normalizeText, quoteStatus } from '../utils/format';
 import type { Quote, QuoteStatus } from '../types';
 
@@ -25,6 +27,8 @@ const Quotes: React.FC = () => {
     return (data ?? []).filter((x) => (status === 'todos' || x.status === status) && (!q || normalizeText(`${x.number} ${x.customer.name} ${x.customer.company ?? ''}`).includes(q)));
   }, [data, search, status]);
   const pag = usePagination(filtered, 15);
+  const bulk = useBulk(pag.paginatedData.map((x) => x.id), filtered.map((x) => x.id));
+  const byId = new Map((filtered).map((x) => [x.id, x]));
   const count = (s: QuoteStatus) => (data ?? []).filter((x) => x.status === s).length;
 
   const remove = async () => {
@@ -46,10 +50,11 @@ const Quotes: React.FC = () => {
               options={[{ value: 'todos', label: 'Todos' }, { value: 'rascunho', label: 'Rascunho' }, { value: 'enviado', label: 'Enviados' }, { value: 'aprovado', label: 'Aprovados' }, { value: 'recusado', label: 'Recusados' }]} />
           </FilterLineSection>
         </FilterLine>
+        <BulkBar resource="quotes" noun="orçamentos" ids={bulk.ids} names={(id) => { const x = byId.get(id); return x ? `#${x.number} · ${x.customer.name}` : id; }} totalCount={filtered.length} onSelectAll={bulk.selectAll} onClear={bulk.clear} onDone={() => { bulk.clear(); reload(true); }} deleteNote="Orçamentos que já viraram ordem de serviço são mantidos. Não dá para desfazer." />
 
         <ContentCard padding="none">
           {error ? <EmptyState icon={FileText} title="Não foi possível carregar os orçamentos" description={error} action={<Button onClick={() => reload()}>Tentar novamente</Button>} /> : (
-            <GridTable<Quote>
+            <GridTable<Quote> selectedIds={bulk.selected} onToggleSelect={bulk.toggle} onToggleSelectAll={bulk.togglePage}
               noDesktopCard keyExtractor={(q) => q.id} data={pag.paginatedData} isLoading={loading} onRowClick={(q) => navigate(`/orcamentos/${q.id}`)}
               emptyMessage={<EmptyState icon={FileText} title={search || status !== 'todos' ? 'Nenhum orçamento encontrado' : 'Nenhum orçamento ainda'} description={search || status !== 'todos' ? 'Ajuste os filtros.' : 'Crie o primeiro orçamento ou deixe a Pixel IA gerar pelo WhatsApp.'} />}
               pagination={{ total: filtered.length, page: pag.page, pageSize: pag.pageSize, onPageChange: pag.setPage, onPageSizeChange: pag.setPageSize }}

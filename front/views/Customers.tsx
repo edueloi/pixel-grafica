@@ -7,6 +7,8 @@ import {
 } from '../components/ui';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
+import { useBulk } from '../src/hooks/useBulk';
+import { BulkBar } from '../components/BulkBar';
 import { digits, maskPhone, normalizeText } from '../utils/format';
 import type { Customer } from '../types';
 
@@ -25,6 +27,8 @@ const Customers: React.FC = () => {
     return (data ?? []).filter((c) => !q || normalizeText(`${c.name} ${c.company ?? ''} ${c.email ?? ''}`).includes(q) || (d.length >= 3 && `${c.phone ?? ''}${c.document ?? ''}`.includes(d)));
   }, [data, search]);
   const pag = usePagination(filtered, 15);
+  const bulk = useBulk(pag.paginatedData.map((x) => x.id), filtered.map((x) => x.id));
+  const byId = new Map((filtered).map((x) => [x.id, x]));
 
   const remove = async () => {
     if (!removing || busy) return;
@@ -49,12 +53,13 @@ const Customers: React.FC = () => {
             {search && <Button variant="ghost" size="xs" onClick={() => setSearch('')}>Limpar busca</Button>}
           </FilterLineSection>
         </FilterLine>
+        <BulkBar resource="customers" noun="clientes" ids={bulk.ids} names={(id) => { const x = byId.get(id); return x ? x.name : id; }} totalCount={filtered.length} onSelectAll={bulk.selectAll} onClear={bulk.clear} onDone={() => { bulk.clear(); reload(true); }} deleteNote="Quem tem pedidos ou orçamentos não é apagado: fica inativo para manter o histórico." canToggleActive />
 
         <ContentCard padding="none">
           {error ? (
             <EmptyState icon={Users} title="Não foi possível carregar os clientes" description={error} action={<Button onClick={() => reload()}>Tentar novamente</Button>} />
           ) : (
-            <GridTable<Customer>
+            <GridTable<Customer> selectedIds={bulk.selected} onToggleSelect={bulk.toggle} onToggleSelectAll={bulk.togglePage}
               noDesktopCard keyExtractor={(c) => c.id} data={pag.paginatedData} isLoading={loading} onRowClick={(c) => navigate(`/clientes/${c.id}`)}
               emptyMessage={<EmptyState icon={Users} title={search ? 'Nenhum cliente encontrado' : 'Nenhum cliente ainda'} description={search ? 'Ajuste a busca.' : 'Cadastre o primeiro cliente para começar.'} />}
               pagination={{ total: filtered.length, page: pag.page, pageSize: pag.pageSize, onPageChange: pag.setPage, onPageSizeChange: pag.setPageSize }}

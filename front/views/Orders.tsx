@@ -7,6 +7,8 @@ import {
 } from '../components/ui';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
+import { useBulk } from '../src/hooks/useBulk';
+import { BulkBar } from '../components/BulkBar';
 import { useUrlTab } from '../src/hooks/useUrlTab';
 import { brl, dateLabel, normalizeText, orderStages, stageOf } from '../utils/format';
 import type { Order, OrderStatus } from '../types';
@@ -64,6 +66,8 @@ const Orders: React.FC = () => {
   }, [data, search]);
   const list = useMemo(() => bySearch.filter((o) => scope === 'todos' || (scope === 'abertos' ? !['entregue', 'cancelado'].includes(o.status) : ['entregue', 'cancelado'].includes(o.status))), [bySearch, scope]);
   const pag = usePagination(list, 15);
+  const bulk = useBulk(pag.paginatedData.map((x) => x.id), list.map((x) => x.id));
+  const byId = new Map((list).map((x) => [x.id, x]));
 
   const advance = async (o: Order) => {
     const next = nextStage(o.status);
@@ -87,6 +91,7 @@ const Orders: React.FC = () => {
             </FilterLineSection>
           )}
         </FilterLine>
+        {view === 'lista' && <BulkBar resource="orders" noun="ordens de serviço" ids={bulk.ids} names={(id) => { const x = byId.get(id); return x ? `#${x.number} · ${x.customer.name}` : id; }} totalCount={list.length} onSelectAll={bulk.selectAll} onClear={bulk.clear} onDone={() => { bulk.clear(); reload(true); }} deleteNote="Só o administrador pode excluir ordens de serviço. Se só quer tirar da produção, prefira cancelar. Não dá para desfazer." />}
 
         {error ? (
           <ContentCard><EmptyState icon={ClipboardList} title="Não foi possível carregar as ordens de serviço" description={error} action={<Button onClick={() => reload()}>Tentar novamente</Button>} /></ContentCard>
@@ -112,7 +117,7 @@ const Orders: React.FC = () => {
             )}
             {view === 'lista' && (
               <ContentCard padding="none">
-                <GridTable<Order>
+                <GridTable<Order> selectedIds={bulk.selected} onToggleSelect={bulk.toggle} onToggleSelectAll={bulk.togglePage}
                   noDesktopCard keyExtractor={(o) => o.id} data={pag.paginatedData} isLoading={loading} onRowClick={(o) => navigate(`/pedidos/${o.id}`)}
                   emptyMessage={<EmptyState icon={ClipboardList} title={search ? 'Nenhuma ordem de serviço encontrada' : 'Nenhuma ordem de serviço aqui'} description={search ? 'Ajuste a busca.' : 'Crie uma ordem de serviço ou aprove um orçamento.'} />}
                   pagination={{ total: list.length, page: pag.page, pageSize: pag.pageSize, onPageChange: pag.setPage, onPageSizeChange: pag.setPageSize }}
