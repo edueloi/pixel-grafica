@@ -4,7 +4,7 @@ import { GoogleGenAI, type ToolUnion } from "@google/genai";
 import type { Product } from "@prisma/client";
 import { prisma } from "../db.js";
 import { decryptSecret } from "../lib/secrets.js";
-import { strip, samePhone, brl, normalizePhone } from "../lib/text.js";
+import { strip, samePhone, brl, normalizePhone, digits, validDocument, validEmail } from "../lib/text.js";
 import { findCustomerByPhone } from "./conversations.js";
 import { parseTiers, quotePrice } from "../lib/pricing.js";
 
@@ -113,6 +113,19 @@ const toolDefs: ToolDef[] = [
     parameters: { type: "object", properties: { numero: { type: "number", description: "Número do orçamento, se o cliente disse" } } },
   },
   {
+    name: "atualizar_cadastro",
+    description: "Atualiza o cadastro do cliente (CPF/CNPJ, e-mail, empresa, endereço, nome) com o que ELE informou. Funciona em DUAS ETAPAS: (1) chame com confirmado=false e os dados que ele mandou: NADA é gravado, a ferramenta devolve o resumo para você mostrar e perguntar se está correto; (2) só depois que o cliente disser que sim, em uma mensagem posterior, chame com confirmado=true (sem reenviar dados). Se ele quiser corrigir algo, chame de novo com confirmado=false e os campos corrigidos.",
+    parameters: {
+      type: "object",
+      properties: {
+        nome: { type: "string", description: "Nome completo da pessoa" }, empresa: { type: "string", description: "Nome da empresa / razão social" },
+        documento: { type: "string", description: "CPF ou CNPJ do próprio cliente" }, email: { type: "string" },
+        cep: { type: "string" }, rua: { type: "string" }, numero: { type: "string" }, bairro: { type: "string" }, cidade: { type: "string" }, estado: { type: "string", description: "UF, ex.: SP" },
+        confirmado: { type: "boolean", description: "true SOMENTE depois do sim do cliente ao resumo mostrado" },
+      },
+    },
+  },
+  {
     name: "transferir_para_atendente",
     description: "Encaminha a conversa para uma pessoa da equipe. Use quando o cliente pedir um humano, para negociação, arte/criação, problema no pedido ou quando você não souber responder.",
     parameters: { type: "object", properties: { setor: { type: "string", description: "Nome do setor" }, motivo: { type: "string", description: "Resumo curto do que o cliente precisa" } }, required: ["setor", "motivo"] },
@@ -157,6 +170,58 @@ async function searchFiles(conv: AiConversation, query: string) {
     const at = Math.max(0, flat.indexOf(words.find((w) => flat.includes(w)) ?? ""));
     return { arquivo: f.name, score, trecho: text.slice(Math.max(0, at - 200), at + 700) };
   }).filter((f) => f.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(({ arquivo, trecho }) => ({ arquivo, trecho }));
+}
+
+// ── Atualização do cadastro com confirmação do cliente ───────────────────────
+type Proposal = { data: Record<string, string>; clientMsgs: number; at: number };
+const proposals = new Map<string, Proposal>();
+const FIELD_LABEL: Record<string, string> = { name: "Nome", company: "Empresa", document: "CPF/CNPJ", email: "E-mail", zip: "CEP", street: "Rua", number: "Número", district: "Bairro", city: "Cidade", state: "UF" };
+const fmtDoc = (d: string) => (d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5"));
+const show = (k: string, v: string) => (k === "document" ? fmtDoc(v) : k === "zip" ? v.replace(/(\d{5})(\d{3})/, "$1-$2") : v);
+
+async function updateCustomerRecord(args: any, conv: AiConversation): Promise<unknown> {
+  const customer = conv.customerId ? await prisma.customer.findUnique({ where: { id: conv.customerId } }) : await findCustomerByPhone(conv.clientPhone);
+  const clientMsgs = await prisma.wppMessage.count({ where: { conversationId: conv.id, fromRole: "client" } });
+
+  // 2ª etapa: grava o que foi mostrado, mas só se o cliente respondeu depois do resumo
+  if (args?.confirmado === true) {
+    const p = proposals.get(conv.id);
+    if (!p || Date.now() - p.at > 30 * 60_000) return { erro: "Não há dados aguardando confirmação. Colete os dados, chame com confirmado=false e mostre o resumo ao cliente primeiro." };
+    if (clientMsgs <= p.clientMsgs) return { erro: "O cliente ainda não respondeu ao resumo. Mostre os dados, pergunte se está correto e espere a resposta dele antes de gravar." };
+    const data = p.data;
+    if (data.document) {
+      const other = await prisma.customer.findFirst({ where: { document: data.document, ...(customer ? { id: { not: customer.id } } : {}) } });
+      if (other) { proposals.delete(conv.id); return { erro: "Este CPF/CNPJ já consta em outro cadastro. Não grave: avise o cliente que a equipe vai conferir e use transferir_para_atendente." }; }
+    }
+    const saved = customer
+      ? await prisma.customer.update({ where: { id: customer.id }, data })
+      : await prisma.customer.create({ data: { ...data, name: data.name || conv.clientName || "Cliente WhatsApp", phone: normalizePhone(conv.clientPhone) } });
+    await prisma.wppConversation.update({ where: { id: conv.id }, data: { customerId: saved.id, ...(data.name ? { clientName: data.name } : {}) } });
+    proposals.delete(conv.id);
+    return { gravado: true, campos: Object.keys(data).map((k) => FIELD_LABEL[k]), aviso: "Cadastro atualizado. Confirme em uma frase e diga que o orçamento e a ordem de serviço já saem com esses dados." };
+  }
+
+  // 1ª etapa: valida, guarda como pendente e devolve o resumo (nada é gravado)
+  const map: Record<string, string> = { nome: "name", empresa: "company", documento: "document", email: "email", cep: "zip", rua: "street", numero: "number", bairro: "district", cidade: "city", estado: "state" };
+  const incoming: Record<string, string> = {};
+  for (const [arg, field] of Object.entries(map)) {
+    const raw = String(args?.[arg] ?? "").trim();
+    if (!raw) continue;
+    if (field === "document") { if (!validDocument(raw)) return { erro: "Esse CPF/CNPJ não parece válido (confira os dígitos). Peça ao cliente para conferir e mandar de novo." }; incoming.document = digits(raw); }
+    else if (field === "email") { if (!validEmail(raw)) return { erro: "Esse e-mail não parece válido. Peça para o cliente conferir." }; incoming.email = raw.toLowerCase().slice(0, 160); }
+    else if (field === "zip") { if (digits(raw).length !== 8) return { erro: "O CEP precisa ter 8 dígitos. Peça para conferir." }; incoming.zip = digits(raw); }
+    else if (field === "state") { if (!/^[a-zA-Z]{2}$/.test(raw)) return { erro: "Use a sigla do estado com 2 letras (ex.: SP)." }; incoming.state = raw.toUpperCase(); }
+    else incoming[field] = raw.slice(0, field === "company" || field === "name" ? 160 : field === "number" ? 20 : 200);
+  }
+  if (!Object.keys(incoming).length) return { erro: "Nenhum dado informado. Pergunte ao cliente o que ele quer incluir no cadastro." };
+  const prev = proposals.get(conv.id);
+  const data = { ...(prev && Date.now() - prev.at < 30 * 60_000 ? prev.data : {}), ...incoming };
+  proposals.set(conv.id, { data, clientMsgs, at: Date.now() });
+  const lines = Object.entries(data).map(([k, v]) => {
+    const old = customer ? ((customer as any)[k] as string | null) : null;
+    return `${FIELD_LABEL[k]}: ${show(k, v)}${old && old !== v ? ` (antes: ${show(k, old)})` : ""}`;
+  });
+  return { etapa: "confirmar", dados: lines, aviso: "NADA FOI GRAVADO AINDA. Mostre estes dados ao cliente, em lista curta, e pergunte se está tudo correto e se pode gravar no cadastro ou se ele quer alterar algo. Espere a resposta. Se ele corrigir, chame de novo (confirmado=false) com o campo corrigido. Só com o sim dele, chame com confirmado=true." };
 }
 
 // Fila por chave: garante que duas execuções da mesma chave não rodem ao mesmo tempo (um só processo do WhatsApp)
@@ -280,6 +345,7 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
         return { numero_orcamento: quote.number, total: brl(total), aviso: "Orçamento registrado. Diga o número e o total e ofereça mandar o PDF agora (se o cliente aceitar ou já tiver pedido, use enviar_orcamento_pdf). A equipe ainda confere antes de fechar." };
       });
     }
+    case "atualizar_cadastro": return updateCustomerRecord(args, conv);
     case "enviar_orcamento_pdf": {
       const customer = conv.customerId ? await prisma.customer.findUnique({ where: { id: conv.customerId } }) : await findCustomerByPhone(conv.clientPhone);
       if (!customer) return { erro: "Este número ainda não tem orçamento registrado. Ofereça fazer um agora." };
@@ -360,6 +426,10 @@ async function customerBlock(conv: AiConversation): Promise<string> {
     `- Cliente cadastrado: ${customer.name}${customer.company ? ` (${customer.company})` : ""}${customer.city ? `, ${customer.city}` : ""}.`,
     ...orders.map((o) => `- Pedido #${o.number}: ${ORDER_STATUS_LABEL[o.status] ?? o.status}; ${o.items.map((i) => i.description).join(" + ").slice(0, 120)}; total ${brl(Number(o.total))}${o.dueDate ? `; previsão ${o.dueDate.toLocaleDateString("pt-BR")}` : ""}.`),
     ...quotes.map((q) => `- Orçamento #${q.number} (${q.status}): ${brl(Number(q.total))}.`),
+    (() => {
+      const missing = [!customer.document && "CPF/CNPJ", !customer.email && "e-mail", !customer.company && "empresa (se houver)", !(customer.street && customer.city) && "endereço"].filter(Boolean);
+      return missing.length ? `- Faltam no cadastro: ${missing.join(", ")}.` : "- Cadastro completo (CPF/CNPJ, e-mail e endereço preenchidos).";
+    })(),
   ];
   return `\nDados do cadastro deste cliente (pode usar para atendê-lo pelo nome e falar dos pedidos dele; não repita dados sensíveis):\n${lines.join("\n")}`;
 }
@@ -419,6 +489,8 @@ PREÇO (sempre pelas ferramentas e pelos dados oficiais; nunca de memória):
 
 ARTE (regra da casa): a criação da arte JÁ ESTÁ INCLUSA nos pedidos; a gráfica NÃO cobra pela arte. Se perguntarem se fazem a arte, responda que sim e que já está inclusa no valor. Se perguntarem se tem desconto por mandar a própria arte, explique com educação que não, justamente porque a arte já está incluída (não existe cobrança de arte para abater), e que ele pode mandar a arte pronta se preferir. Peça o necessário para criar (logo, textos, cores, medida). Não transfira só por causa de arte.
 
+DADOS DO CADASTRO (CPF/CNPJ, e-mail, empresa, endereço): se o cliente disser que precisa deles no orçamento ou na nota, mandar por conta própria, ou ao fechar um pedido, peça o que falta (veja "Faltam no cadastro" nos dados do cliente), de forma simples, tudo numa mensagem só. Quando ele mandar, chame atualizar_cadastro com confirmado=false, mostre os dados organizados e pergunte: "Está tudo certo? Posso gravar no seu cadastro ou você quer alterar algo?". SÓ depois do sim dele chame com confirmado=true. Se corrigir, chame de novo com o campo certo. Nunca grave sem esse sim e nunca invente dado. Depois de gravar, diga que o orçamento e a ordem de serviço saem com esses dados.
+
 PEDIDO DE ORÇAMENTO ("quero fazer um orçamento", "quanto fica…"): isso NÃO é motivo para transferir. Você mesma conduz a conversa, como uma atendente de balcão:
 - Comece de forma natural, pelo nome se souber, e pergunte o que ele quer imprimir (ou use o que ele já disse). Uma pergunta por vez; não despeje uma lista de perguntas nem um formulário.
 - Descubra produto, quantidade e, se precisar, medida ou acabamento. Quando já der para calcular, calcule e responda o valor na hora com as ferramentas.
@@ -430,7 +502,7 @@ CONVERSA:
 - Se o cliente não souber o que escolher, faça UMA pergunta por vez (para que serve, quantidade, formato) e sugira a melhor opção do catálogo, explicando em uma frase por quê.
 - Quando o cliente confirmar produto e quantidade, registre com criar_orcamento e ofereça enviar o PDF do orçamento por aqui.
 - Use transferir_para_atendente quando: o cliente pedir uma pessoa, quiser negociar valor fora da tabela, tiver problema ou reclamação com um pedido, enviar arquivo para conferência, ou você não souber responder com segurança.
-- Nunca peça senha, dados de cartão ou documentos sensíveis. Não diga que executou algo que não fez com uma ferramenta.
+- Nunca peça senha nem dados de cartão. CPF/CNPJ, e-mail e endereço só para o cadastro, seguindo a regra acima. Não diga que executou algo que não fez com uma ferramenta.
 - Setores disponíveis para transferência: ${sectors}.
 ${conv.clientName ? `- Nome do cliente: ${conv.clientName}.` : ""}
 ${s.customPrompt ? `\nOrientações da gráfica (não podem contrariar as regras acima):\n${s.customPrompt}` : ""}`;
