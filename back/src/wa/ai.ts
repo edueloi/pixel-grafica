@@ -159,7 +159,16 @@ async function searchFiles(conv: AiConversation, query: string) {
   }).filter((f) => f.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(({ arquivo, trecho }) => ({ arquivo, trecho }));
 }
 
-export async function runTool(name: string, args: any, conv: AiConversation, out: AiResult): Promise<unknown> {
+export // Fila por chave: garante que duas execuções da mesma chave não rodem ao mesmo tempo (um só processo do WhatsApp)
+const locks = new Map<string, Promise<unknown>>();
+function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const run = (locks.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
+  locks.set(key, run);
+  void run.finally(() => { if (locks.get(key) === run) locks.delete(key); }).catch(() => {});
+  return run;
+}
+
+async function runTool(name: string, args: any, conv: AiConversation, out: AiResult): Promise<unknown> {
   switch (name) {
     case "listar_produtos": {
       const q = String(args?.busca || "").trim();
@@ -229,7 +238,7 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       const { sendPdf } = await import("../lib/notify.js");
       const doc = await orderPdf(order.id);
       if (!doc) return { erro: "Não consegui gerar o PDF agora." };
-      const first = (customer.name || "").trim().split(/s+/)[0];
+      const first = (customer.name || "").trim().split(/\s+/)[0];
       try {
         await sendPdf({ phone: conv.clientPhone, buffer: doc.buffer, fileName: doc.fileName, message: `${first ? `${first}, s` : "S"}egue a ordem de serviço nº ${order.number}${order.dueDate ? `. Previsão de entrega: ${order.dueDate.toLocaleDateString("pt-BR")}` : ""}. 💙`, userName: "Pixel IA", customerId: customer.id, orderId: order.id });
       } catch (e) { return { erro: "Não consegui enviar o PDF agora. Peça desculpas e ofereça chamar a equipe." }; }
@@ -249,14 +258,27 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
         lines.push({ productId: p.id, description: `${p.name}${it.observacao ? ` — ${String(it.observacao).slice(0, 150)}` : ""}`, quantity: q, unitPrice: r.unitPrice, total: r.total });
       }
       if (!lines.length) return { erro: "Informe ao menos um item." };
-      let customer = conv.customerId ? await prisma.customer.findUnique({ where: { id: conv.customerId } }) : await findCustomerByPhone(conv.clientPhone);
-      if (!customer) customer = await prisma.customer.create({ data: { name: conv.clientName || "Cliente WhatsApp", phone: normalizePhone(conv.clientPhone) } });
-      await prisma.wppConversation.update({ where: { id: conv.id }, data: { customerId: customer.id } });
-      const total = lines.reduce((s, l) => s + l.total, 0);
-      const quote = await prisma.quote.create({
-        data: { customerId: customer.id, status: "rascunho", source: "whatsapp", total, notes: args?.observacoes ? String(args.observacoes).slice(0, 1000) : null, items: { create: lines } },
+      // uma conversa por vez: chamadas repetidas/simultâneas da IA não podem gerar orçamentos duplicados
+      return withLock(`quote:${conv.id}`, async () => {
+        let customer = conv.customerId ? await prisma.customer.findUnique({ where: { id: conv.customerId } }) : await findCustomerByPhone(conv.clientPhone);
+        if (!customer) customer = await prisma.customer.create({ data: { name: conv.clientName || "Cliente WhatsApp", phone: normalizePhone(conv.clientPhone) } });
+        await prisma.wppConversation.update({ where: { id: conv.id }, data: { customerId: customer.id } });
+        const total = lines.reduce((s, l) => s + l.total, 0);
+
+        // mesmo rascunho (mesmos produtos e quantidades) criado há pouco: devolve o que já existe em vez de duplicar
+        const sig = (xs: { productId: string | null; quantity: unknown }[]) => xs.map((x) => `${x.productId}|${Number(x.quantity)}`).sort().join(",");
+        const recent = await prisma.quote.findMany({
+          where: { customerId: customer.id, status: "rascunho", source: "whatsapp", createdAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+          include: { items: true }, orderBy: { createdAt: "desc" },
+        });
+        const dup = recent.find((q) => sig(q.items) === sig(lines));
+        if (dup) return { numero_orcamento: dup.number, total: brl(Number(dup.total)), aviso: "Este orçamento já estava registrado (não criei outro). Diga o número e o total e ofereça mandar o PDF (enviar_orcamento_pdf)." };
+
+        const quote = await prisma.quote.create({
+          data: { customerId: customer.id, status: "rascunho", source: "whatsapp", total, notes: args?.observacoes ? String(args.observacoes).slice(0, 1000) : null, items: { create: lines } },
+        });
+        return { numero_orcamento: quote.number, total: brl(total), aviso: "Orçamento registrado. Diga o número e o total e ofereça mandar o PDF agora (se o cliente aceitar ou já tiver pedido, use enviar_orcamento_pdf). A equipe ainda confere antes de fechar." };
       });
-      return { numero_orcamento: quote.number, total: brl(total), aviso: "Orçamento registrado. Diga o número e o total e ofereça mandar o PDF agora (se o cliente aceitar ou já tiver pedido, use enviar_orcamento_pdf). A equipe ainda confere antes de fechar." };
     }
     case "enviar_orcamento_pdf": {
       const customer = conv.customerId ? await prisma.customer.findUnique({ where: { id: conv.customerId } }) : await findCustomerByPhone(conv.clientPhone);

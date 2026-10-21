@@ -3,9 +3,11 @@ import { User as UserIcon, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button, Input, ContentCard } from '../components/ui';
 import { PixelMark } from '../components/PixelLogo';
 import { api, errMsg } from '../api';
+import { useBrand, logoSrc } from '../src/hooks/useBrand';
 import type { User } from '../types';
 
 const Login: React.FC<{ onLogin: (token: string, user: User) => void }> = ({ onLogin }) => {
+  const brand = useBrand();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -28,8 +30,9 @@ const Login: React.FC<{ onLogin: (token: string, user: User) => void }> = ({ onL
     <div className="min-h-[100dvh] flex items-center justify-center px-4 bg-gradient-to-b from-blue-50 to-slate-50">
       <div className="w-full max-w-sm space-y-5">
         <div className="flex flex-col items-center gap-2 text-center">
-          <PixelMark size={44} />
-          <h1 className="text-lg font-semibold text-slate-900">Pixel <span className="text-blue-600">Gráfica</span></h1>
+          {brand?.hasLogo
+            ? <img src={logoSrc(brand)} alt={brand.name} className="max-h-20 max-w-[220px] object-contain" />
+            : <><PixelMark size={44} /><h1 className="text-lg font-semibold text-slate-900">Pixel <span className="text-blue-600">Gráfica</span></h1></>}
           <p className="text-xs text-slate-500">Entre para acessar o sistema de gestão.</p>
         </div>
         <ContentCard padding="md">

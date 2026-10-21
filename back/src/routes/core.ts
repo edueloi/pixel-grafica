@@ -1,11 +1,14 @@
 // Autenticação, usuários, clientes e produtos.
 import { Router } from "express";
+import multer from "multer";
+import fs from "fs";
 import bcrypt from "bcryptjs";
 import { prisma } from "../db.js";
 import { signToken, requireAuth, requireRole } from "../auth.js";
 import { ah, HttpError, str, num } from "./util.js";
 import { digits, normalizePhone } from "../lib/text.js";
 import { parseTiers } from "../lib/pricing.js";
+import { storeBuffer, filePath } from "../lib/files.js";
 
 export const publicRouter = Router();
 export const router = Router();
@@ -156,6 +159,39 @@ router.put("/company", requireRole(), ah(async (req, res) => {
   for (const [k, max] of Object.entries(COMPANY_FIELDS)) if (b[k] !== undefined) data[k] = str(b[k], max);
   if (!data.name && "name" in data) throw new HttpError(400, "Informe o nome da empresa.");
   res.json(await prisma.companyProfile.update({ where: { id: cur.id }, data }));
+}));
+
+// ── Logotipo (aparece no login, no menu e nos PDFs) ──────────────────────────
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024 } });
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]), JPG = Buffer.from([0xff, 0xd8, 0xff]);
+const removeLogoFile = (name?: string | null) => { if (name) fs.rm(filePath(name), { force: true }, () => {}); };
+
+// público: a tela de login precisa do logo antes de entrar
+publicRouter.get("/brand", ah(async (_req, res) => {
+  const c = await prisma.companyProfile.findFirst({ select: { name: true, logoFile: true, updatedAt: true } });
+  res.json({ name: c?.name ?? "Pixel Gráfica", hasLogo: !!c?.logoFile, v: c?.updatedAt.getTime() ?? 0 });
+}));
+publicRouter.get("/brand/logo", ah(async (_req, res) => {
+  const c = await prisma.companyProfile.findFirst({ select: { logoFile: true, logoMime: true } });
+  if (!c?.logoFile || !fs.existsSync(filePath(c.logoFile))) throw new HttpError(404, "Sem logotipo.");
+  res.type(c.logoMime || "image/png").set("Cache-Control", "public, max-age=3600").sendFile(filePath(c.logoFile));
+}));
+
+router.post("/company/logo", requireRole(), logoUpload.single("logo"), ah(async (req, res) => {
+  const f = req.file;
+  if (!f) throw new HttpError(400, "Escolha uma imagem.");
+  const isPng = f.buffer.subarray(0, 4).equals(PNG), isJpg = f.buffer.subarray(0, 3).equals(JPG);
+  if (!isPng && !isJpg) throw new HttpError(400, "Use uma imagem PNG ou JPG (até 3 MB).");
+  const cur = await getCompany();
+  const logoFile = storeBuffer(f.buffer, isPng ? "logo.png" : "logo.jpg");
+  const saved = await prisma.companyProfile.update({ where: { id: cur.id }, data: { logoFile, logoMime: isPng ? "image/png" : "image/jpeg" } });
+  removeLogoFile(cur.logoFile);
+  res.json(saved);
+}));
+router.delete("/company/logo", requireRole(), ah(async (_req, res) => {
+  const cur = await getCompany();
+  removeLogoFile(cur.logoFile);
+  res.json(await prisma.companyProfile.update({ where: { id: cur.id }, data: { logoFile: null, logoMime: null } }));
 }));
 
 export { requireAuth };

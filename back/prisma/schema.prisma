@@ -389,6 +389,8 @@ model CompanyProfile {
   delivery       String?  @db.VarChar(500) // retirada, entrega e frete
   artService     String?  @db.VarChar(500) // criação de arte: como funciona e valores
   notes          String?  @db.Text // outras informações que a IA deve saber
+  logoFile       String?  @db.VarChar(120) // logotipo (arquivo em back/uploads): painel, login e PDFs
+  logoMime       String?  @db.VarChar(60)
   catalogVersion Int      @default(0) // controle do catálogo inicial semeado
   updatedAt      DateTime @updatedAt
 }

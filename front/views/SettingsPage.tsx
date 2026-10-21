@@ -7,6 +7,7 @@ import { useLoad } from '../src/hooks/useLoad';
 import { useUrlTab } from '../src/hooks/useUrlTab';
 import { setSettingsCache } from '../src/hooks/useSettings';
 import { VariableEditor } from '../components/VariableEditor';
+import { LogoCard } from '../components/LogoCard';
 import { varsFor, sampleVars, fill } from '../utils/messages';
 import { orderStages } from '../utils/format';
 import type { Settings } from '../types';
@@ -102,6 +103,7 @@ const SettingsPage: React.FC = () => {
         <Tabs<TabId> items={tabs as unknown as { id: TabId; label: string; icon: typeof FileText }[]} value={tab} onChange={setTab} label="Configurações">
           {tab === 'geral' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="lg:col-span-2"><LogoCard /></div>
               <PanelCard title="Prazos padrão" description="Já vêm preenchidos ao criar um documento novo (você ainda pode trocar)" icon={SlidersHorizontal}>
                 <div className="grid grid-cols-2 gap-3">
                   <Input label="Validade do orçamento (dias)" inputMode="numeric" value={String(s.quoteValidityDays)} onChange={(e) => patch({ quoteValidityDays: Number(e.target.value.replace(/\D/g, '')) || 0 })} />

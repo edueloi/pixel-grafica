@@ -8,6 +8,7 @@ import path from "path";
 import { createRequire } from "module";
 import { prisma } from "../db.js";
 import { brl } from "./text.js";
+import { filePath } from "./files.js";
 
 const INK = "#111827", TEXT = "#374151", MUTED = "#6b7280", RULE = "#d1d5db", BLUE = "#2563eb";
 const M = 44;                       // margem
@@ -52,7 +53,7 @@ const cnpjBR = (v?: string | null) => {
   return v ?? "";
 };
 
-interface Company { name: string; tagline?: string | null; document?: string | null; address?: string | null; phone?: string | null; email?: string | null; instagram?: string | null; website?: string | null }
+interface Company { logoFile?: string | null; name: string; tagline?: string | null; document?: string | null; address?: string | null; phone?: string | null; email?: string | null; instagram?: string | null; website?: string | null }
 interface DocData {
   kind: "ORÇAMENTO" | "ORDEM DE SERVIÇO"; number: number; company: Company;
   meta: [string, string][];
@@ -102,8 +103,20 @@ function render(d: DocData): Promise<Buffer> {
       doc.font(F.med).fontSize(7).fillColor(MUTED).text(t.toUpperCase(), x, yy, { width, align, characterSpacing: 0.7 });
 
     // ── Cabeçalho: empresa à esquerda, documento à direita ──
-    mark(doc, M, y + 1, 30);
-    const tx = M + 42, tw = 300;
+    // logotipo cadastrado nas configurações; sem ele, usa a marca padrão
+    let tx = M + 42;
+    const logoPath = d.company.logoFile ? filePath(d.company.logoFile) : null;
+    let drewLogo = false;
+    if (logoPath && fs.existsSync(logoPath)) {
+      try {
+        const img = (doc as any).openImage(logoPath) as { width: number; height: number };
+        const s = Math.min(42 / img.height, 120 / img.width);
+        doc.image(logoPath, M, y, { width: img.width * s, height: img.height * s });
+        tx = M + img.width * s + 12; drewLogo = true;
+      } catch { /* imagem inválida: cai na marca padrão */ }
+    }
+    if (!drewLogo) mark(doc, M, y + 1, 30);
+    const tw = 300;
     doc.font(F.bold).fontSize(14).fillColor(INK).text(d.company.name, tx, y, { width: tw });
     let ly = y + 19;
     const contact = [d.company.phone && `Tel. ${phoneBR(d.company.phone)}`, d.company.instagram, d.company.email, d.company.website].filter(Boolean).join("   ·   ");
