@@ -406,3 +406,23 @@ model Setting {
   value     Json
   updatedAt DateTime @updatedAt
 }
+
+// Anotações do atendimento (gostos, preferências, o que o cliente pediu e enviou). Geradas pela IA a partir da conversa ou escritas à mão.
+// Aparecem no cliente, no orçamento, na ordem de serviço e na própria conversa.
+model Note {
+  id             String   @id @default(uuid())
+  title          String   @db.VarChar(160)
+  body           String   @db.Text
+  source         String   @default("manual") @db.VarChar(10) // ia | manual
+  customerId     String?  @db.VarChar(36)
+  quoteId        String?  @db.VarChar(36)
+  orderId        String?  @db.VarChar(36)
+  conversationId String?  @db.VarChar(36)
+  createdBy      String?  @db.VarChar(120)
+  createdAt      DateTime @default(now())
+
+  @@index([customerId])
+  @@index([quoteId])
+  @@index([orderId])
+  @@index([conversationId])
+}

@@ -545,6 +545,26 @@ async function openaiRequest(apiKey: string, body: unknown, signal?: AbortSignal
   return data;
 }
 
+/** Pede um texto à IA configurada (sem ferramentas). null = IA desligada, sem chave ou indisponível. */
+export async function completeText(system: string, prompt: string, maxTokens = 700): Promise<string | null> {
+  const s = await loadSettings();
+  if (!s.enabled || !s.apiKey) return null;
+  try {
+    if (s.provider === "openai") {
+      const d = await openaiRequest(s.apiKey, { model: s.model, messages: [{ role: "system", content: system }, { role: "user", content: prompt }], temperature: 0.2, max_tokens: maxTokens }, AbortSignal.timeout(40_000));
+      return String(d.choices?.[0]?.message?.content ?? "").trim() || null;
+    }
+    const r = await new GoogleGenAI({ apiKey: s.apiKey }).models.generateContent({
+      model: s.model, contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: { systemInstruction: system, temperature: 0.2, maxOutputTokens: maxTokens, abortSignal: AbortSignal.timeout(40_000) },
+    });
+    return (r.text ?? "").trim() || null;
+  } catch (e) {
+    console.error("[IA] anotações:", safeError(e));
+    return null;
+  }
+}
+
 async function askOpenAI(s: Settings, conv: AiConversation, text: string, out: AiResult): Promise<AiResult> {
   const messages: any[] = [
     { role: "system", content: await systemPrompt(s, conv) },

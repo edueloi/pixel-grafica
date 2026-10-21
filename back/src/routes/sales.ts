@@ -101,6 +101,7 @@ router.post("/quotes/:id/order", ah(async (req, res) => {
     });
     // os arquivos que o cliente mandou para este orçamento passam a valer também no pedido
     await tx.attachment.updateMany({ where: { quoteId: quote.id, orderId: null }, data: { orderId: created.id } });
+    await tx.note.updateMany({ where: { quoteId: quote.id, orderId: null }, data: { orderId: created.id } });
     return created;
   });
   res.status(201).json(order);

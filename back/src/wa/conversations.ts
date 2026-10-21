@@ -146,6 +146,8 @@ export async function acceptWaitingConversation(convId: string, who: { id?: stri
     offers.set(attPhone, list.filter((id) => id !== convId));
     if (!phone || !samePhone(attPhone, phone)) await tr.sendText(attPhone, `ℹ️ O atendimento de *${clientLabel(conv)}* já foi assumido por *${who.name}*.`);
   }
+  // ficha do que o cliente já contou/enviou: vai para o atendente (WhatsApp), para a conversa, o cliente e o orçamento aberto
+  void import("./briefing.js").then((m) => m.createBriefing(convId, { sendToPhone: phone })).catch((e) => console.error("[wa] anotações:", e));
   return conv;
 }
 
@@ -156,6 +158,7 @@ export async function closeActiveConversation(convId: string, byName: string, cl
   await prisma.wppConversation.update({ where: { id: convId }, data: { status: "closed", closedBy: "attendant", closedAt: new Date() } });
   await record(convId, "system", `${byName} finalizou o atendimento.`);
   releaseClient(targetOf(conv));
+  void import("./briefing.js").then((m) => m.createBriefing(convId, { title: "Resumo do atendimento" })).catch((e) => console.error("[wa] resumo:", e));
   const msg = closingMessage ?? `Atendimento encerrado por *${byName}*. Obrigado pelo contato! 💙\nSe precisar de algo, é só enviar uma mensagem.`;
   if (msg.trim()) {
     await tr.sendText(targetOf(conv), msg.trim());

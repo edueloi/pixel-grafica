@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { FileText, Pencil, Download, ExternalLink, MessageCircle, ClipboardList, Loader2, Eye, Paperclip, User as UserIcon, CheckCircle2 } from 'lucide-react';
+import { FileText, Pencil, Download, ExternalLink, MessageCircle, ClipboardList, Loader2, Eye, Paperclip, StickyNote, User as UserIcon, CheckCircle2 } from 'lucide-react';
 import { PageWrapper, ContentCard, Button, Badge, EmptyState, PanelCard, DetailField, Tabs, ConfirmModal, useToast } from '../components/ui';
+import { NotesPanel } from '../components/NotesPanel';
 import { FilesPanel } from '../components/FilesPanel';
 import { BackBar } from '../components/BackBar';
 import { SendWhatsappModal } from '../components/SendWhatsappModal';
@@ -14,7 +15,7 @@ import { brl, brlUnit, dateLabel, dateTimeLabel, maskPhone, quoteStatus } from '
 import { quoteMessage } from '../utils/messages';
 import type { Quote, QuoteStatus } from '../types';
 
-const tabs = [{ id: 'resumo', label: 'Resumo', icon: FileText }, { id: 'arquivos', label: 'Arquivos', icon: Paperclip }, { id: 'documento', label: 'Documento (PDF)', icon: Eye }] as const;
+const tabs = [{ id: 'resumo', label: 'Resumo', icon: FileText }, { id: 'arquivos', label: 'Arquivos', icon: Paperclip }, { id: 'anotacoes', label: 'Anotações', icon: StickyNote }, { id: 'documento', label: 'Documento (PDF)', icon: Eye }] as const;
 const tabIds = tabs.map((t) => t.id);
 
 const QuoteDetail: React.FC = () => {
@@ -120,6 +121,7 @@ const QuoteDetail: React.FC = () => {
             </div>
           )}
           {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel quoteId={q.id} kind="quote" pickFromCustomerId={q.customer.id} emptyHint="Anexe o que o cliente mandou (logo, arte, referência), enviando um arquivo ou escolhendo entre os que ele já enviou pelo WhatsApp." /></ContentCard>}
+          {tab === 'anotacoes' && <ContentCard padding="md"><NotesPanel quoteId={q.id} /></ContentCard>}
           {tab === 'documento' && (
             <ContentCard padding="none" className="overflow-hidden">
               <iframe key={pdfKey} title={`PDF do orçamento ${q.number}`} src={`${pdfUrl('quotes', q.id)}#toolbar=0&navpanes=0`} className="w-full h-[78vh] bg-slate-100" />

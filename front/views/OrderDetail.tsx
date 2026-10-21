@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ClipboardList, Pencil, Download, ExternalLink, MessageCircle, Loader2, Eye, User as UserIcon, Flame, Wallet, Paperclip, History, Check, Send, ArrowRight } from 'lucide-react';
+import { ClipboardList, Pencil, Download, ExternalLink, MessageCircle, Loader2, Eye, User as UserIcon, Flame, Wallet, Paperclip, History, Check, Send, ArrowRight, StickyNote } from 'lucide-react';
 import { PageWrapper, ContentCard, Button, Badge, EmptyState, PanelCard, DetailField, Tabs, Select, Input, Textarea, useToast } from '../components/ui';
 import { BackBar } from '../components/BackBar';
 import { SendWhatsappModal } from '../components/SendWhatsappModal';
 import { PaymentsPanel } from '../components/PaymentsPanel';
 import { FilesPanel } from '../components/FilesPanel';
 import { api, errMsg, pdfUrl } from '../api';
+import { NotesPanel } from '../components/NotesPanel';
 import { useLoad } from '../src/hooks/useLoad';
 import { useUrlTab } from '../src/hooks/useUrlTab';
 import { useCompany } from '../src/hooks/useCompany';
@@ -17,7 +18,7 @@ import { orderDocMessage, stageMessage, notifyByDefault } from '../utils/message
 import type { Order, OrderStatus } from '../types';
 
 const tabs = [
-  { id: 'resumo', label: 'Resumo', icon: ClipboardList }, { id: 'pagamentos', label: 'Pagamentos', icon: Wallet }, { id: 'arquivos', label: 'Arquivos', icon: Paperclip },
+  { id: 'resumo', label: 'Resumo', icon: ClipboardList }, { id: 'pagamentos', label: 'Pagamentos', icon: Wallet }, { id: 'arquivos', label: 'Arquivos', icon: Paperclip }, { id: 'anotacoes', label: 'Anotações', icon: StickyNote },
   { id: 'documento', label: 'Documento (PDF)', icon: Eye }, { id: 'historico', label: 'Histórico', icon: History },
 ] as const;
 const tabIds = tabs.map((t) => t.id);
@@ -173,6 +174,7 @@ const OrderDetail: React.FC = () => {
             </div>
           )}
           {tab === 'pagamentos' && <PaymentsPanel order={o} company={name} settings={settings} onChanged={refresh} />}
+          {tab === 'anotacoes' && <ContentCard padding="md"><NotesPanel orderId={o.id} emptyHint="Aqui ficam as anotações do atendimento: o que o cliente pediu, gosta, não gosta e enviou." /></ContentCard>}
           {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel orderId={o.id} kind="order" pickFromCustomerId={o.customer.id} emptyHint="Anexe a arte, o PDF final ou o arquivo enviado pelo cliente." /></ContentCard>}
           {tab === 'documento' && (
             <ContentCard padding="none" className="overflow-hidden">

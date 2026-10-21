@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { MessageCircle, Send, Paperclip, Plus, ArrowLeft, UserCheck, XCircle, Shuffle, Link2, Bot, Loader2, QrCode, Power, FileText, FolderInput, Clock } from 'lucide-react';
+import { MessageCircle, Send, Paperclip, Plus, ArrowLeft, UserCheck, XCircle, Shuffle, Link2, Bot, Loader2, QrCode, Power, FileText, FolderInput, Clock, NotebookPen } from 'lucide-react';
 import {
   PageWrapper, SectionTitle, ContentCard, Button, IconButton, Modal, ModalFooter, ConfirmModal, Input, Textarea, Select, Badge, EmptyState, Alert, FilterLineSegmented, useToast,
 } from '../components/ui';
+import { NotesPanel } from '../components/NotesPanel';
 import { api, errMsg, fileUrl } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
 import { cn } from '../src/lib/utils';
@@ -232,7 +233,7 @@ const Chat: React.FC<{ id: string; user: User; sectors: Sector[]; onBack: () => 
   const { data: c, loading, error, reload } = useLoad(() => api.get<ConversationDetail>(`/wpp/conversations/${id}`), [id]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [modal, setModal] = useState<'transfer' | 'link' | 'close' | null>(null);
+  const [modal, setModal] = useState<'transfer' | 'link' | 'close' | 'notes' | null>(null);
   const [toOrder, setToOrder] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
@@ -279,6 +280,7 @@ const Chat: React.FC<{ id: string; user: User; sectors: Sector[]; onBack: () => 
         <Badge size="sm" dot color={st.color}>{st.label}</Badge>
         <div className="flex gap-1 flex-wrap">
           {(c.status === 'waiting' || c.status === 'bot') && <Button size="xs" iconLeft={<UserCheck size={12} />} loading={busy} onClick={() => run(() => api.post(`/wpp/conversations/${id}/accept`), 'Você assumiu o atendimento.')}>Assumir</Button>}
+          <Button size="xs" variant="outline" iconLeft={<NotebookPen size={12} />} onClick={() => setModal('notes')}>Anotações</Button>
           {c.status !== 'closed' && <Button size="xs" variant="outline" iconLeft={<Shuffle size={12} />} onClick={() => setModal('transfer')}>Transferir</Button>}
           {c.status === 'active' && mine && <Button size="xs" variant="outline" iconLeft={<XCircle size={12} />} onClick={() => setModal('close')}>Encerrar</Button>}
         </div>
@@ -324,6 +326,11 @@ const Chat: React.FC<{ id: string; user: User; sectors: Sector[]; onBack: () => 
       </footer>
 
       {modal === 'transfer' && <TransferModal convId={id} sectors={sectors} current={c.sector?.id} currentAttendantId={c.attendantId} onClose={() => setModal(null)} onDone={() => { setModal(null); refresh(); }} />}
+      {modal === 'notes' && (
+        <Modal isOpen onClose={() => setModal(null)} size="lg" title={`Anotações · ${label(c)}`} footer={<ModalFooter align="left"><Button variant="ghost" size="sm" onClick={() => setModal(null)}>Fechar</Button></ModalFooter>}>
+          <NotesPanel conversationId={id} customerId={c.customerId ?? undefined} canGenerate />
+        </Modal>
+      )}
       {modal === 'link' && <LinkCustomerModal conv={c} onClose={() => setModal(null)} onDone={() => { setModal(null); refresh(); }} />}
       {toOrder && <ToOrderModal attachmentId={toOrder} onClose={() => { setToOrder(null); reload(true); }} />}
       <ConfirmModal isOpen={modal === 'close'} onClose={() => setModal(null)} loading={busy} variant="primary" title="Encerrar atendimento?" confirmLabel="Encerrar"

@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Users, Pencil, MessageCircle, FileText, ClipboardList, Loader2, Paperclip, UserCircle2 } from 'lucide-react';
+import { Users, Pencil, MessageCircle, FileText, ClipboardList, Loader2, Paperclip, UserCircle2, StickyNote } from 'lucide-react';
 import { PageWrapper, ContentCard, PanelCard, DetailField, Button, Badge, EmptyState, Tabs } from '../components/ui';
 import { BackBar } from '../components/BackBar';
 import { FilesPanel } from '../components/FilesPanel';
 import { api } from '../api';
+import { NotesPanel } from '../components/NotesPanel';
 import { useLoad } from '../src/hooks/useLoad';
 import { useUrlTab } from '../src/hooks/useUrlTab';
 import { brl, dateLabel, initials, maskCep, maskDocument, maskPhone, quoteStatus, stageOf, waLink } from '../utils/format';
@@ -13,7 +14,7 @@ import type { Customer, Order, Quote } from '../types';
 type Full = Customer & { orders: Order[]; quotes: Quote[] };
 const tabs = [
   { id: 'dados', label: 'Dados', icon: UserCircle2 }, { id: 'pedidos', label: 'Ordens de serviço', icon: ClipboardList },
-  { id: 'orcamentos', label: 'Orçamentos', icon: FileText }, { id: 'arquivos', label: 'Arquivos', icon: Paperclip },
+  { id: 'orcamentos', label: 'Orçamentos', icon: FileText }, { id: 'arquivos', label: 'Arquivos', icon: Paperclip }, { id: 'anotacoes', label: 'Anotações', icon: StickyNote },
 ] as const;
 const tabIds = tabs.map((t) => t.id);
 
@@ -101,6 +102,7 @@ const CustomerDetail: React.FC = () => {
               )}
             </ContentCard>
           )}
+          {tab === 'anotacoes' && <ContentCard padding="md"><NotesPanel customerId={c.id} /></ContentCard>}
           {tab === 'arquivos' && <ContentCard padding="md"><FilesPanel customerId={c.id} emptyHint="Logos, artes e documentos deste cliente, inclusive o que ele enviar pelo WhatsApp. A IA pode consultar os que estiverem marcados." /></ContentCard>}
         </Tabs>
       </div>
