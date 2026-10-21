@@ -3,6 +3,8 @@ import { prisma } from "../db.js";
 import * as tr from "./transport.js";
 import { digits, samePhone, normalizePhone, cut } from "../lib/text.js";
 import { notifyChange } from "../lib/events.js";
+import fs from "fs";
+import { filePath } from "../lib/files.js";
 
 // from/to ("HH:MM") e days (0=dom … 6=sáb) são opcionais: sem horário cadastrado, a pessoa atende a qualquer hora.
 export interface Attendant { name: string; phone: string; available: boolean; from?: string; to?: string; days?: number[] }
@@ -126,6 +128,15 @@ export async function acceptWaitingConversation(convId: string, who: { id?: stri
   const conv = await prisma.wppConversation.findUniqueOrThrow({ where: { id: convId }, include: { sector: true } });
   await record(convId, "system", `${who.name} assumiu o atendimento.`);
   setClientConversation(targetOf(conv), convId, "in_chat");
+  // quem aceitou pelo WhatsApp recebe também os arquivos que o cliente já tinha mandado (fila/bot)
+  if (phone) {
+    const sentFiles = await prisma.wppMessage.findMany({ where: { conversationId: convId, fromRole: "client", attachmentId: { not: null } }, orderBy: { sentAt: "desc" }, take: 6 });
+    for (const m of sentFiles.reverse()) {
+      const att = m.attachmentId ? await prisma.attachment.findUnique({ where: { id: m.attachmentId } }) : null;
+      if (!att || !fs.existsSync(filePath(att.storedName))) continue;
+      await tr.sendFile(phone, fs.readFileSync(filePath(att.storedName)), att.name, att.mime, `*${clientLabel(conv)}:* ${att.name}`).catch(() => false);
+    }
+  }
   const greeting = `*${who.name}* iniciou o seu atendimento. 👋\nComo posso ajudar?`;
   await tr.sendText(targetOf(conv), greeting);
   await record(convId, "attendant", greeting.replace(/\*/g, ""));
@@ -151,6 +162,22 @@ export async function closeActiveConversation(convId: string, byName: string, cl
     await record(convId, "bot", msg.trim().replace(/\*/g, ""));
   }
   return conv;
+}
+
+// Atendimento aceito e sem mensagens (de nenhum lado) há `minutes`: encerra, avisa o cliente e o atendente
+export async function closeIdleActive(minutes: number, customMsg?: string | null) {
+  const stale = await prisma.wppConversation.findMany({ where: { status: "active", updatedAt: { lt: new Date(Date.now() - minutes * 60_000) } } });
+  for (const c of stale) {
+    const done = await prisma.wppConversation.updateMany({ where: { id: c.id, status: "active" }, data: { status: "closed", closedBy: "system", closedAt: new Date() } });
+    if (!done.count) continue;
+    await record(c.id, "system", `Atendimento encerrado automaticamente: ${minutes} min sem mensagens.`);
+    releaseClient(targetOf(c));
+    const first = (clientLabel(c) || "").trim().split(/\s+/)[0];
+    const msg = (customMsg?.trim() || "Como não recebemos resposta há um tempo, encerramos este atendimento por aqui. 💙\nSe ainda estiver por aí ou precisar de algo, é só mandar uma mensagem que a gente retoma!")
+      .replace(/\{nome\}/gi, realPhone({ clientPhone: first }) ? "" : first).replace(/[ ]+([!,.?])/g, "$1");
+    try { await tr.sendText(targetOf(c), msg); await record(c.id, "bot", msg.replace(/\*/g, "")); } catch (e) { console.error("[wa] aviso de encerramento:", e); }
+    if (c.attendantPhone) await tr.sendText(c.attendantPhone, `ℹ️ O atendimento de *${clientLabel(c)}* foi encerrado por inatividade (${minutes} min sem mensagens).`).catch(() => {});
+  }
 }
 
 // Transferir para outro setor: volta para a fila do novo setor e avisa os atendentes dele
@@ -233,6 +260,7 @@ export async function startConversation(input: { phone: string; name?: string | 
 export interface ClientState {
   nodeId: string | null; mode: "menu" | "ai"; remoteJid: string; lastActivity: number;
   pushName?: string | null; conversationId?: string; status?: "waiting" | "in_chat"; aiTurns?: number;
+  awaitingName?: boolean; pendingText?: string; // pergunta do nome: aguardando resposta (e o que ele escreveu antes)
 }
 export const clientStates = new Map<string, ClientState>();
 export const stateKey = (jid: string) => tr.jidToPhone(tr.toJid(jid));

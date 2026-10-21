@@ -68,6 +68,7 @@ export interface ConversationDetail extends Conversation { messages: ChatMessage
 
 export type AiProvider = 'gemini' | 'openai';
 export interface BotConfig {
+  idleCloseMin: number; idleCloseMsg?: string | null; returnAfterMin: number; welcomeBackMsg?: string | null; askName: boolean;
   botEnabled: boolean; useButtons: boolean; welcomeMsg?: string | null; offHoursMsg?: string | null; aiEnabled: boolean; aiPrompt?: string | null;
   aiProvider: AiProvider; geminiModel: string; openaiModel: string; hasGeminiKey: boolean; hasOpenaiKey: boolean;
   presets: Record<AiProvider, { value: string; label: string }[]>;

@@ -272,6 +272,11 @@ model WppBotConfig {
   openaiApiKeyEncrypted String?  @db.Text
   openaiModel           String   @default("gpt-4o-mini") @db.VarChar(80)
   aiPrompt              String?  @db.Text // orientações extras do administrador para a IA
+  idleCloseMin          Int      @default(30) // atendimento sem mensagens por tantos minutos é encerrado sozinho (0 = nunca)
+  idleCloseMsg          String?  @db.Text // aviso ao cliente quando encerra por inatividade
+  returnAfterMin        Int      @default(60) // cliente que volta depois de tantos minutos é recebido como "de volta"
+  welcomeBackMsg        String?  @db.Text
+  askName               Boolean  @default(true) // sem nome real no WhatsApp e sem cadastro: o bot pergunta o nome e cadastra o cliente
   updatedAt             DateTime @updatedAt
   createdAt             DateTime @default(now())
 }

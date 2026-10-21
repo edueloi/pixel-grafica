@@ -29,6 +29,41 @@ const SaveBar: React.FC<{ dirty: boolean; saving: boolean; onSave: () => void }>
 );
 
 // ── Geral ────────────────────────────────────────────────────────────────────
+/** Encerramento por inatividade, boas-vindas a quem volta e pergunta do nome. */
+const Rhythm: React.FC<{ data: BotConfig; onSaved: (c: BotConfig) => void }> = ({ data, onSaved }) => {
+  const toast = useToast();
+  const [d, setD] = useState({
+    idleCloseMin: String(data.idleCloseMin), idleCloseMsg: data.idleCloseMsg ?? '', returnAfterMin: String(data.returnAfterMin), welcomeBackMsg: data.welcomeBackMsg ?? '', askName: data.askName,
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (p: Partial<typeof d>) => setD((x) => ({ ...x, ...p }));
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      onSaved(await api.put<BotConfig>('/bot/config', { ...d, idleCloseMin: Number(d.idleCloseMin) || 0, returnAfterMin: Number(d.returnAfterMin) || 60 }));
+      toast.success('Salvo.');
+    } catch (e) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  };
+  return (
+    <PanelCard title="Encerramento e retorno do cliente" description="Quanto tempo esperar antes de encerrar o atendimento e como receber quem volta a falar com a gráfica.">
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Encerrar atendimento sem mensagens após (min)" inputMode="numeric" value={d.idleCloseMin} onChange={(e) => set({ idleCloseMin: e.target.value.replace(/\D/g, '') })} hint="Vale para o atendimento já aceito por uma pessoa. 0 = nunca encerrar sozinho." />
+          <Input label="Cliente “voltou” após (min)" inputMode="numeric" value={d.returnAfterMin} onChange={(e) => set({ returnAfterMin: e.target.value.replace(/\D/g, '') })} hint="Passado esse tempo sem conversa, um novo “oi” é recebido como retorno (e conversas só com o bot são encerradas)." />
+        </div>
+        <Textarea label="Aviso ao cliente ao encerrar por inatividade" rows={3} value={d.idleCloseMsg} onChange={(e) => set({ idleCloseMsg: e.target.value })} placeholder="Como não recebemos resposta há um tempo, encerramos este atendimento por aqui. 💙 Se ainda estiver por aí ou precisar de algo, é só mandar uma mensagem que a gente retoma!" hint="Vazio = usa a mensagem padrão acima. Dá para usar {nome}." />
+        <Textarea label="Boas-vindas a quem volta" rows={2} value={d.welcomeBackMsg} onChange={(e) => set({ welcomeBackMsg: e.target.value })} placeholder="{saudacao}, {nome}! Que bom te ver de volta. 😊 Como posso te ajudar hoje?" hint="Vazio = usa a mensagem padrão acima. Variáveis: {saudacao} e {nome}." />
+        <label className="flex items-center justify-between gap-3 py-1">
+          <span><span className="block text-[13px] text-slate-800">Perguntar o nome quando não tiver</span><span className="block text-xs text-slate-500">Se o WhatsApp não mostra um nome de verdade e o número não está cadastrado, o bot pergunta e já cadastra o cliente.</span></span>
+          <Switch checked={d.askName} onCheckedChange={(v) => set({ askName: v })} aria-label="Perguntar o nome" />
+        </label>
+        <div className="flex justify-end"><Button size="sm" loading={saving} onClick={save}>Salvar</Button></div>
+      </div>
+    </PanelCard>
+  );
+};
+
 const General: React.FC = () => {
   const toast = useToast();
   const { data, setData, loading, error, reload } = useLoad(() => api.get<BotConfig>('/bot/config'), [], { live: false });
@@ -56,6 +91,7 @@ const General: React.FC = () => {
           </div>
         </div>
       </PanelCard>
+      <Rhythm key={data.idleCloseMin + '-' + data.returnAfterMin + (data.askName ? 'a' : 'b')} data={data} onSaved={setData} />
       <Alert variant="info" title="Como o bot atende">
         1) Mostra o menu de botões. 2) Se o cliente escrever livremente, procura em <b>Conhecimento</b> (respostas prontas) e depois pergunta à <b>IA</b>, que consulta produtos, preços e arquivos. 3) Quando precisa de uma pessoa, coloca na fila do <b>setor</b> e avisa os atendentes.
       </Alert>

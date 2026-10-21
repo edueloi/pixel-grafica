@@ -6,7 +6,7 @@ import { saveAttachment } from "../lib/files.js";
 import { strip, cut, normalizePhone } from "../lib/text.js";
 import {
   record, findCustomerByPhone, findAttendantByPhone, handleAttendantMessage, offerConversation, queuePosition,
-  clientStates, stateKey, targetOf, clientLabel, parseAttendants, onShift, scheduleLabel, type ClientState,
+  clientStates, stateKey, targetOf, clientLabel, parseAttendants, onShift, scheduleLabel, closeIdleActive, realPhone, type ClientState,
 } from "./conversations.js";
 
 const MENU_WORDS = /^(menu|inicio|início|voltar|0)[\s!.,?]*$/i;
@@ -22,6 +22,27 @@ function sectorForHuman(text: string): string {
 }
 const pickOne = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const SESSION_IDLE_MS = 60 * 60 * 1000;
+const returnMs = (c?: { returnAfterMin?: number | null } | null) => (c?.returnAfterMin && c.returnAfterMin > 0 ? c.returnAfterMin : 60) * 60_000;
+
+// Nome "de verdade": tem letras (não só número, emoji ou pontuação)
+const isRealName = (n?: string | null) => !!n && /\p{L}{2,}/u.test(n.trim()) && !/^\+?[\d\s()-]+$/.test(n.trim());
+// Resposta à pergunta "como posso te chamar?": só aceita algo que pareça um nome (até 4 palavras, só letras)
+function parseName(raw: string): string | null {
+  const t = raw.trim().replace(/^(meu nome (é|e)|me chamo|pode me chamar de|sou (o|a)|aqui (é|e) (o|a)?|é|e)\s+/i, "").replace(/[.!]+$/, "").trim();
+  if (!/^\p{L}[\p{L}'’.\- ]{1,39}$/u.test(t) || t.split(/\s+/).length > 4) return null;
+  return t.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+// Cadastra (ou atualiza) o cliente com o nome informado e liga à conversa
+async function registerClientName(conv: { id: string; clientPhone: string; customerId: string | null }, name: string) {
+  let customerId = conv.customerId;
+  if (!customerId && realPhone({ clientPhone: conv.clientPhone })) {
+    const found = await findCustomerByPhone(conv.clientPhone);
+    customerId = (found ?? await prisma.customer.create({ data: { name, phone: normalizePhone(conv.clientPhone) } })).id;
+  }
+  await prisma.wppConversation.update({ where: { id: conv.id }, data: { clientName: name, ...(customerId ? { customerId } : {}) } });
+  await prisma.wppContactMemory.upsert({ where: { phone: conv.clientPhone }, create: { phone: conv.clientPhone, name }, update: { name } }).catch(() => {});
+  return customerId;
+}
 const OFFER_DELAY_MS = 2500;
 
 export const saudacao = (d = new Date()) => {
@@ -211,18 +232,22 @@ export async function handleMessage(msg: any, _sock: any) {
   });
 
   // Conversa só com o bot, parada há muito tempo: encerra e começa outra
-  if (conv?.status === "bot" && Date.now() - conv.updatedAt.getTime() > SESSION_IDLE_MS) {
+  const config = await prisma.wppBotConfig.findFirst();
+  if (conv?.status === "bot" && Date.now() - conv.updatedAt.getTime() > returnMs(config)) {
     await prisma.wppConversation.update({ where: { id: conv.id }, data: { status: "closed", closedBy: "system", closedAt: new Date() } });
     conv = null; clientStates.delete(key);
   }
 
-  const config = await prisma.wppBotConfig.findFirst();
   if (!conv && !config?.botEnabled) return;
 
   let state = clientStates.get(key);
+  let isNew = false, returning = false;
 
   // Nova conversa: vincula ao cliente cadastrado (se houver)
   if (!conv) {
+    isNew = true;
+    const previous = await prisma.wppConversation.findFirst({ where: { OR: [{ clientJid: rawJid }, { clientPhone }] }, orderBy: { updatedAt: "desc" } });
+    returning = !!previous && Date.now() - previous.updatedAt.getTime() > returnMs(config);
     const customer = await findCustomerByPhone(clientPhone);
     conv = await prisma.wppConversation.create({
       data: { clientPhone, clientJid: rawJid, clientName: customer?.name ?? pushName, customerId: customer?.id ?? null, firstMessage: cut(text || "Enviou um arquivo", 1000), status: "bot" },
@@ -265,12 +290,45 @@ export async function handleMessage(msg: any, _sock: any) {
       return;
     }
     if (conv.status === "active" && conv.attendantPhone) {
-      await tr.sendText(conv.attendantPhone, `*${clientLabel(conv)}:* ${text}`);
+      // foto/arquivo/áudio do cliente vai de verdade para o atendente (não só o aviso de que existe)
+      const sent = media ? await tr.sendFile(conv.attendantPhone, media.buffer, media.fileName, media.mime, `*${clientLabel(conv)}:* ${text}`) : false;
+      if (!sent) await tr.sendText(conv.attendantPhone, `*${clientLabel(conv)}:* ${text}`);
     }
     return;
   }
 
   // ── Bot ────────────────────────────────────────────────────────────────────
+  // Respondendo "como posso te chamar?": cadastra o cliente e segue a conversa (retoma o que ele tinha escrito)
+  if (state.awaitingName) {
+    state.awaitingName = false;
+    const name = media ? null : parseName(text);
+    const pending = state.pendingText; state.pendingText = undefined;
+    if (name) {
+      await registerClientName(conv, name);
+      conv = { ...conv, clientName: name };
+      state.pushName = name;
+      if (!pending) { await botSay(state, `Prazer, ${name.split(" ")[0]}! 😊 Como posso te ajudar?`, conv.id); return; }
+      await botSay(state, `Prazer, ${name.split(" ")[0]}! 😊`, conv.id);
+      text = pending; // segue respondendo o que ele pediu no começo
+    }
+    // não parecia um nome (ele já foi direto ao assunto): segue normalmente, sem insistir
+  } else if (isNew && !media && config?.askName !== false && !conv.customerId && !isRealName(pushName)) {
+    state.awaitingName = true;
+    state.pendingText = GREETING.test(text) || text.length < 4 ? undefined : text;
+    await botSay(state, `${saudacao()}! Eu sou a assistente virtual da Pixel Gráfica. 😊 Antes de começar, como posso te chamar?`, conv.id);
+    return;
+  }
+
+  // Cliente que volta depois de um tempo e só cumprimenta: recebe um "de volta" em vez de recomeçar do menu
+  if (returning && !media && GREETING.test(text)) {
+    const first = firstName(state.pushName ?? conv.clientName);
+    const tpl = config?.welcomeBackMsg?.trim();
+    const msg = tpl ? fill(tpl, first) : `${saudacao()}${first ? `, ${first}` : ""}! Que bom te ver de volta. 😊 Como posso te ajudar hoje?`;
+    await botSay(state, msg, conv.id);
+    if (await isAiAvailable()) { state.mode = "ai"; state.aiTurns = 0; } else await sendStart(state, conv);
+    return;
+  }
+
   if (isAudio) {
     if (heard) text = heard; // a conversa segue como se ele tivesse escrito
     else {
@@ -340,12 +398,14 @@ export async function handleMessage(msg: any, _sock: any) {
 export function startConversationSweeper() {
   const run = async () => {
     try {
-      const stale = await prisma.wppConversation.findMany({ where: { status: "bot", updatedAt: { lt: new Date(Date.now() - SESSION_IDLE_MS) } } });
+      const cfg = await prisma.wppBotConfig.findFirst();
+      if (cfg && cfg.idleCloseMin > 0) await closeIdleActive(cfg.idleCloseMin, cfg.idleCloseMsg);
+      const stale = await prisma.wppConversation.findMany({ where: { status: "bot", updatedAt: { lt: new Date(Date.now() - returnMs(cfg)) } } });
       for (const c of stale) {
         await prisma.wppConversation.update({ where: { id: c.id }, data: { status: "closed", closedBy: "system", closedAt: new Date() } });
         clientStates.delete(stateKey(targetOf(c)));
       }
     } catch (e) { console.error("[wa] limpeza de conversas:", e); }
   };
-  setInterval(run, 5 * 60 * 1000).unref?.();
+  setInterval(run, 60 * 1000).unref?.();
 }

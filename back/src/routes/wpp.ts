@@ -162,6 +162,7 @@ router.post("/wpp/start", ah(async (req, res) => {
 
 // ── Configuração do bot ──────────────────────────────────────────────────────
 const configOut = (c: any) => ({
+  idleCloseMin: c.idleCloseMin, idleCloseMsg: c.idleCloseMsg, returnAfterMin: c.returnAfterMin, welcomeBackMsg: c.welcomeBackMsg, askName: c.askName,
   botEnabled: c.botEnabled, useButtons: c.useButtons, welcomeMsg: c.welcomeMsg, offHoursMsg: c.offHoursMsg, aiEnabled: c.aiEnabled, aiPrompt: c.aiPrompt,
   aiProvider: c.aiProvider === "openai" ? "openai" : "gemini",
   geminiModel: c.geminiModel, openaiModel: c.openaiModel,
@@ -175,7 +176,10 @@ router.get("/bot/config", ah(async (_req, res) => { res.json(configOut(await get
 router.put("/bot/config", ah(async (req, res) => {
   const b = req.body ?? {}, cur = await getConfig();
   const data: any = {};
-  for (const k of ["botEnabled", "useButtons", "aiEnabled"]) if (b[k] !== undefined) data[k] = !!b[k];
+  for (const k of ["idleCloseMin", "returnAfterMin"]) if (b[k] !== undefined) data[k] = Math.min(1440, Math.max(0, Math.round(Number(b[k]) || 0)));
+  if (data.returnAfterMin === 0) data.returnAfterMin = 60;
+  for (const k of ["idleCloseMsg", "welcomeBackMsg"]) if (b[k] !== undefined) data[k] = str(b[k], 1000);
+  for (const k of ["botEnabled", "useButtons", "aiEnabled", "askName"]) if (b[k] !== undefined) data[k] = !!b[k];
   for (const k of ["welcomeMsg", "offHoursMsg", "aiPrompt"]) if (b[k] !== undefined) data[k] = str(b[k], 4000);
   if (b.aiProvider === "gemini" || b.aiProvider === "openai") data.aiProvider = b.aiProvider;
   if (b.geminiModel !== undefined) data.geminiModel = str(b.geminiModel, 80) ?? DEFAULT_MODEL.gemini;
