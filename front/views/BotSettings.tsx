@@ -192,6 +192,14 @@ const Menus: React.FC = () => {
   );
 };
 
+const WEEKDAYS = [{ short: 'D', full: 'Domingo' }, { short: 'S', full: 'Segunda' }, { short: 'T', full: 'Terça' }, { short: 'Q', full: 'Quarta' }, { short: 'Q', full: 'Quinta' }, { short: 'S', full: 'Sexta' }, { short: 'S', full: 'Sábado' }];
+// sem dias marcados = todos os dias; ao desmarcar um dia a lista passa a ser explícita
+const toggleDay = (days: number[] | undefined, n: number) => {
+  const cur = days?.length ? days : [0, 1, 2, 3, 4, 5, 6];
+  const next = cur.includes(n) ? cur.filter((d) => d !== n) : [...cur, n].sort();
+  return next.length === 7 || next.length === 0 ? [] : next;
+};
+
 // ── Setores ──────────────────────────────────────────────────────────────────
 const SectorModal: React.FC<{ sector: Sector | null; onClose: () => void; onSaved: () => void }> = ({ sector, onClose, onSaved }) => {
   const toast = useToast();
@@ -222,15 +230,30 @@ const SectorModal: React.FC<{ sector: Sector | null; onClose: () => void; onSave
         <div className="rounded-lg border border-slate-200 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div><h4 className="text-xs font-semibold text-slate-800">Quem atende</h4><p className="text-[11px] text-slate-500">Estas pessoas recebem o aviso no WhatsApp e aceitam respondendo 1. Também dá para assumir pelo painel.</p></div>
-            <Button variant="outline" size="xs" iconLeft={<Plus size={12} />} onClick={() => setPeople((p) => [...p, { name: '', phone: '', available: true }])}>Pessoa</Button>
+            <Button variant="outline" size="xs" iconLeft={<Plus size={12} />} onClick={() => setPeople((p) => [...p, { name: '', phone: '', available: true, from: '', to: '', days: [] }])}>Pessoa</Button>
           </div>
           {people.length === 0 && <p className="text-[11px] text-slate-400">Ninguém cadastrado: os atendimentos ficam só na fila do painel.</p>}
           {people.map((p, i) => (
-            <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] gap-2 items-end">
-              <Input label="Nome" value={p.name} onChange={(e) => setP(i, { name: e.target.value })} />
-              <Input label="WhatsApp" value={p.phone} inputMode="tel" onChange={(e) => setP(i, { phone: maskPhone(e.target.value) })} />
-              <label className="flex items-center gap-1.5 text-[11px] text-slate-600 pb-2"><Switch size="sm" checked={p.available} onCheckedChange={(v) => setP(i, { available: v })} aria-label={`${p.name || 'Atendente'} disponível`} />Disponível</label>
-              <IconButton variant="ghost" size="md" aria-label="Remover pessoa" onClick={() => setPeople((x) => x.filter((_, idx) => idx !== i))}><Trash2 /></IconButton>
+            <div key={i} className="space-y-2 rounded-md bg-slate-50 p-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] gap-2 items-end">
+                <Input label="Nome" value={p.name} onChange={(e) => setP(i, { name: e.target.value })} />
+                <Input label="WhatsApp" value={p.phone} inputMode="tel" onChange={(e) => setP(i, { phone: maskPhone(e.target.value) })} />
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-600 pb-2"><Switch size="sm" checked={p.available} onCheckedChange={(v) => setP(i, { available: v })} aria-label={`${p.name || 'Atendente'} disponível`} />Disponível</label>
+                <IconButton variant="ghost" size="md" aria-label="Remover pessoa" onClick={() => setPeople((x) => x.filter((_, idx) => idx !== i))}><Trash2 /></IconButton>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <Input label="Atende das" type="time" value={p.from ?? ''} onChange={(e) => setP(i, { from: e.target.value })} />
+                <Input label="às" type="time" value={p.to ?? ''} onChange={(e) => setP(i, { to: e.target.value })} />
+                <div className="flex gap-1 pb-1" role="group" aria-label="Dias de atendimento">
+                  {WEEKDAYS.map((d, n) => {
+                    const on = !p.days?.length || p.days.includes(n);
+                    return <button key={n} type="button" aria-pressed={on} title={d.full}
+                      onClick={() => setP(i, { days: toggleDay(p.days, n) })}
+                      className={`h-7 w-7 rounded text-[11px] font-medium border ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200'}`}>{d.short}</button>;
+                  })}
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400">Deixe os horários vazios para atender a qualquer hora. Fora do horário, não recebe aviso; se ninguém do setor estiver no horário, o bot avisa o cliente.</p>
             </div>
           ))}
         </div>

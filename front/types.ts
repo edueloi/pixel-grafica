@@ -72,7 +72,7 @@ export interface BotConfig {
   aiProvider: AiProvider; geminiModel: string; openaiModel: string; hasGeminiKey: boolean; hasOpenaiKey: boolean;
   presets: Record<AiProvider, { value: string; label: string }[]>;
 }
-export interface Attendant { name: string; phone: string; available: boolean }
+export interface Attendant { name: string; phone: string; available: boolean; from?: string; to?: string; days?: number[] }
 export interface Sector { id: string; name: string; description?: string | null; isActive: boolean; sortOrder: number; attendants: Attendant[] }
 export interface FlowOption { key: string; label: string; nextNodeId?: string | null }
 export interface FlowNode {

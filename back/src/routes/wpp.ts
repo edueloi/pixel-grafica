@@ -4,7 +4,7 @@ import multer from "multer";
 import { prisma } from "../db.js";
 import { ah, HttpError, str } from "./util.js";
 import * as wa from "../wa/index.js";
-import { record, targetOf, parseAttendants } from "../wa/conversations.js";
+import { record, targetOf, parseAttendants, cleanTime, cleanDays } from "../wa/conversations.js";
 import { testConnection, MODEL_PRESETS, DEFAULT_MODEL } from "../wa/ai.js";
 import { encryptSecret } from "../lib/secrets.js";
 import { saveAttachment, filePath } from "../lib/files.js";
@@ -201,7 +201,7 @@ const sectorData = (b: any) => ({
   name: str(b.name, 100) ?? (() => { throw new HttpError(400, "Informe o nome do setor."); })(),
   description: str(b.description, 255), isActive: b.isActive === undefined ? true : !!b.isActive, sortOrder: Number(b.sortOrder) || 0,
   attendants: JSON.stringify((Array.isArray(b.attendants) ? b.attendants : []).filter((a: any) => digits(a?.phone).length >= 10)
-    .map((a: any) => ({ name: str(a.name, 100) ?? "Atendente", phone: normalizePhone(a.phone), available: a.available !== false }))),
+    .map((a: any) => ({ name: str(a.name, 100) ?? "Atendente", phone: normalizePhone(a.phone), available: a.available !== false, from: cleanTime(a.from), to: cleanTime(a.to), days: cleanDays(a.days) }))),
 });
 router.post("/bot/sectors", ah(async (req, res) => { res.status(201).json(await prisma.wppSector.create({ data: sectorData(req.body ?? {}) })); }));
 router.put("/bot/sectors/:id", ah(async (req, res) => { res.json(await prisma.wppSector.update({ where: { id: req.params.id }, data: sectorData(req.body ?? {}) })); }));

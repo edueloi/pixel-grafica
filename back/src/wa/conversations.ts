@@ -3,15 +3,47 @@ import { prisma } from "../db.js";
 import * as tr from "./transport.js";
 import { digits, samePhone, normalizePhone, cut } from "../lib/text.js";
 
-export interface Attendant { name: string; phone: string; available: boolean }
+// from/to ("HH:MM") e days (0=dom … 6=sáb) são opcionais: sem horário cadastrado, a pessoa atende a qualquer hora.
+export interface Attendant { name: string; phone: string; available: boolean; from?: string; to?: string; days?: number[] }
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const cleanTime = (v: unknown) => (typeof v === "string" && HHMM.test(v.trim()) ? v.trim() : undefined);
+export const cleanDays = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort() : undefined);
 
 export function parseAttendants(json: string | null | undefined): Attendant[] {
   try {
     const arr = JSON.parse(json || "[]");
     return Array.isArray(arr)
-      ? arr.filter((a) => a?.phone).map((a) => ({ name: String(a.name || "Atendente"), phone: digits(a.phone), available: a.available !== false }))
+      ? arr.filter((a) => a?.phone).map((a) => ({
+        name: String(a.name || "Atendente"), phone: digits(a.phone), available: a.available !== false,
+        from: cleanTime(a.from), to: cleanTime(a.to), days: cleanDays(a.days),
+      }))
       : [];
   } catch { return []; }
+}
+
+// Está no horário de atendimento agora? (fuso do processo = America/Sao_Paulo). Janela que vira a meia-noite (22:00–02:00) é aceita.
+export function onShift(a: Attendant, now = new Date()): boolean {
+  if (a.days?.length && !a.days.includes(now.getDay())) return false;
+  if (!a.from || !a.to) return true;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const [fh, fm] = a.from.split(":").map(Number), [th, tm] = a.to.split(":").map(Number);
+  const f = fh * 60 + fm, t = th * 60 + tm;
+  return f <= t ? cur >= f && cur < t : cur >= f || cur < t;
+}
+
+const DAY_NAMES = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+function daysLabel(days?: number[]) {
+  if (!days?.length || days.length === 7) return "todos os dias";
+  if (days.join() === "1,2,3,4,5") return "de segunda a sexta";
+  if (days.join() === "1,2,3,4,5,6") return "de segunda a sábado";
+  return days.map((d) => DAY_NAMES[d]).join(", ");
+}
+// "de segunda a sexta, das 08:00 às 18:00" — junta os horários distintos dos atendentes
+export function scheduleLabel(list: Attendant[]): string {
+  const parts = [...new Set(list.filter((a) => a.available && (a.from || a.days?.length)).map((a) =>
+    `${daysLabel(a.days)}${a.from && a.to ? `, das ${a.from} às ${a.to}` : ""}`))];
+  return parts.join(" e ");
 }
 
 type ConvLike = { clientJid?: string | null; clientPhone: string; clientName?: string | null };
@@ -65,7 +97,7 @@ export async function offerConversation(convId: string, onlyPhone?: string) {
   const summary = [conv.subject ? `📌 Assunto: *${conv.subject}*` : null, ...bullets].filter(Boolean).join("\n") || "• (cliente ainda não descreveu o assunto)";
 
   for (const att of parseAttendants(conv.sector.attendants)) {
-    if (!att.available) continue;
+    if (!att.available || !onShift(att)) continue;
     if (onlyPhone && !samePhone(att.phone, onlyPhone)) continue;
     // atendente já em conversa não recebe oferta (as mensagens dele iriam para o cliente)
     if (await prisma.wppConversation.findFirst({ where: { status: "active", attendantPhone: att.phone } })) continue;

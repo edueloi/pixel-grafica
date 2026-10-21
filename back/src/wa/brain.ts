@@ -6,7 +6,7 @@ import { saveAttachment } from "../lib/files.js";
 import { strip, cut, normalizePhone } from "../lib/text.js";
 import {
   record, findCustomerByPhone, findAttendantByPhone, handleAttendantMessage, offerConversation, queuePosition,
-  clientStates, stateKey, targetOf, clientLabel, type ClientState,
+  clientStates, stateKey, targetOf, clientLabel, parseAttendants, onShift, scheduleLabel, type ClientState,
 } from "./conversations.js";
 
 const MENU_WORDS = /^(menu|inicio|início|voltar|0)[\s!.,?]*$/i;
@@ -102,6 +102,19 @@ async function handoffToSector(state: ClientState, conv: { id: string; clientPho
   const pos = await queuePosition(updated);
   await record(conv.id, "system", `Cliente encaminhado ao setor ${sector.name}.${note ? ` ${note}` : ""}`);
   await botSay(state, `Certo! Estou encaminhando você ao setor *${sector.name}*. 💙\n\n${positionText(sector.name, pos)}\nEnquanto isso, pode descrever o que precisa ou enviar seus arquivos por aqui. ✍️`, conv.id);
+  // ninguém do setor está no horário de atendimento agora: avisa o cliente (a conversa fica na fila para quando a equipe voltar)
+  const team = parseAttendants(sector.attendants).filter((a) => a.available);
+  if (team.length && !team.some((a) => onShift(a))) {
+    const cfg = await prisma.wppBotConfig.findFirst();
+    const when = scheduleLabel(team);
+    const msg = cfg?.offHoursMsg?.trim()
+      ? cfg.offHoursMsg.replace(/\{horario\}/gi, when || "nosso horário de atendimento")
+      : `No momento estamos sem atendentes no horário. 🕐${when ? `
+Nosso atendimento é ${when}.` : ""}
+Deixe sua mensagem por aqui que respondemos assim que a equipe voltar. 💙`;
+    await botSay(state, msg, conv.id);
+    return;
+  }
   setTimeout(() => { offerConversation(conv.id).catch((e) => console.error("[wa] erro ao avisar atendentes:", e)); }, OFFER_DELAY_MS);
 }
 
