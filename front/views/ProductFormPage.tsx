@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Package, Loader2, Save, Plus, Trash2 } from 'lucide-react';
+import { Package, Loader2, Save, Plus, Trash2, Sparkles } from 'lucide-react';
 import { PageWrapper, SectionTitle, ContentCard, PanelCard, Button, IconButton, Input, Select, Textarea, Switch, EmptyState, Alert, useToast } from '../components/ui';
 import { BackBar } from '../components/BackBar';
 import { ProductPhotos } from '../components/ProductPhotos';
@@ -44,6 +44,21 @@ const ProductFormPage: React.FC = () => {
   const pack = f.pricingMode === 'package';
   const u = unitLabel[f.unit] ?? 'unidade';
   const setTier = (i: number, k: keyof Tier, v: string) => setTiers((ts) => ts.map((t, idx) => (idx === i ? { ...t, [k]: v } : t)));
+
+  const [aiBusy, setAiBusy] = useState(false);
+  const aiFill = async () => {
+    if (aiBusy) return;
+    if (!f.name.trim()) { setFormError('Informe o nome do produto para a IA analisar.'); return; }
+    setAiBusy(true); setFormError('');
+    try {
+      const parsed = tiers.map((t) => ({ minQty: Number(t.minQty), price: Number(String(t.price).replace(',', '.')) })).filter((t) => t.minQty > 0 && Number.isFinite(t.price));
+      const options = opts.filter((o) => o.name.trim()).map((o) => ({ name: o.name.trim(), price: Number(String(o.price).replace(',', '.')) || 0, kind: o.kind }));
+      const r = await api.post<{ description: string | null; howItWorks: string | null }>('/products/ai-fill', { ...f, price: Number(String(f.price).replace(',', '.')) || 0, minQty: Number(f.minQty) || 1, priceTiers: parsed, options });
+      setF((x) => ({ ...x, description: r.description ?? x.description, howItWorks: r.howItWorks ?? x.howItWorks }));
+      toast.success('Textos preenchidos pela IA. Revise e salve.');
+    } catch (e) { setFormError(errMsg(e)); }
+    finally { setAiBusy(false); }
+  };
 
   const save = async () => {
     if (saving) return;
@@ -144,7 +159,7 @@ const ProductFormPage: React.FC = () => {
           </div>
         </PanelCard>
 
-        <PanelCard title="Textos para o cliente e para a IA">
+        <PanelCard title="Textos para o cliente e para a IA" description="A IA lê o nome, os preços e os opcionais acima e escreve os dois textos. Você revisa antes de salvar." action={<Button variant="outline" size="sm" onClick={aiFill} disabled={aiBusy}>{aiBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{aiBusy ? 'Analisando…' : 'Preencher com a IA'}</Button>}>
           <div className="grid gap-3">
             <Textarea label="Descrição (formatos, papéis, acabamentos, valores)" value={f.description} onChange={(e) => set('description', e.target.value)} rows={5} />
             <Textarea label="Como funciona (arte, processo, cuidados)" value={f.howItWorks} onChange={(e) => set('howItWorks', e.target.value)} rows={4} hint="Ex.: como enviar a arte, o que está incluso, o que é cobrado à parte." />

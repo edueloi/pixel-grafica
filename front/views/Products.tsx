@@ -22,6 +22,10 @@ const Products: React.FC = () => {
   const [category, setCategory] = useState('todas');
   const [removing, setRemoving] = useState<Product | null>(null);
   const [busy, setBusy] = useState(false);
+  const toggleActive = async (p: Product) => {
+    try { await api.patch(`/products/${p.id}/active`, { active: !p.active }); toast.success(p.active ? 'Produto inativado.' : 'Produto ativado.'); reload(true); }
+    catch (e) { toast.error(errMsg(e)); }
+  };
 
   const categories = useMemo(() => [...new Set((data ?? []).map((p) => p.category))].sort(), [data]);
   const filtered = useMemo(() => {
@@ -75,7 +79,7 @@ const Products: React.FC = () => {
                     {p.pricingMode === 'package' ? <><span className="font-normal text-slate-500">a partir de </span>{brl(p.price)}</> : <>{brl(p.price)} <span className="font-normal text-slate-500">/ {unitLabel[p.unit]}</span></>}
                   </span>) },
                 { header: 'Prazo', hideOnMobile: true, render: (p) => <span className="text-xs whitespace-nowrap">{p.leadTime || <span className="text-slate-400">A consultar</span>}</span> },
-                { header: 'Situação', hideOnMobile: true, render: (p) => <Badge size="sm" dot color={p.active ? 'success' : 'default'}>{p.active ? 'Ativo' : 'Inativo'}</Badge> },
+                { header: 'Situação', hideOnMobile: true, render: (p) => (<button type="button" onClick={(e) => { e.stopPropagation(); toggleActive(p); }} title={p.active ? 'Clique para inativar' : 'Clique para ativar'} aria-label={`${p.active ? 'Inativar' : 'Ativar'} ${p.name}`} className="rounded-full hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Badge size="sm" dot color={p.active ? 'success' : 'default'}>{p.active ? 'Ativo' : 'Inativo'}</Badge></button>) },
                 { header: '', className: 'w-12', render: (p) => <div className="flex justify-end" onClick={(e) => e.stopPropagation()}><IconButton variant="ghost" size="xs" aria-label={`Excluir ${p.name}`} onClick={() => setRemoving(p)}><Trash2 /></IconButton></div> },
               ]}
             />

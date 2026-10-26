@@ -9,6 +9,7 @@ import { ah, HttpError, str, num } from "./util.js";
 import { digits, normalizePhone } from "../lib/text.js";
 import { parseTiers, parseOptions } from "../lib/pricing.js";
 import { storeBuffer, filePath } from "../lib/files.js";
+import { completeText } from "../wa/ai.js";
 
 export const publicRouter = Router();
 export const router = Router();
@@ -142,6 +143,39 @@ router.get("/products/:id", ah(async (req, res) => {
   if (!p) throw new HttpError(404, "Produto não encontrado.");
   res.json(p);
 }));
+// Ativar/inativar com um clique (selo da lista)
+router.patch("/products/:id/active", requireRole("atendente"), ah(async (req, res) => {
+  res.json(await prisma.product.update({ where: { id: req.params.id }, data: { active: !!req.body?.active }, select: { id: true, active: true } }));
+}));
+
+// A IA lê o que já está preenchido e escreve a descrição e o "como funciona" (o atendente revisa antes de salvar)
+router.post("/products/ai-fill", requireRole("atendente"), ah(async (req, res) => {
+  const b = req.body ?? {};
+  const name = str(b.name, 160);
+  if (!name) throw new HttpError(400, "Informe o nome do produto para a IA analisar.");
+  const tiers = parseTiers(b.priceTiers).map((t: any) => `${t.minQty}: R$ ${t.price}`).join("; ");
+  const opts = parseOptions(b.options).map((o: any) => `${o.name} (+R$ ${o.price})`).join("; ");
+  const facts = [
+    `Nome: ${name}`, `Categoria: ${str(b.category, 80) ?? ""}`, `Unidade: ${str(b.unit, 20) ?? "un"}`,
+    `Preço: ${b.pricingMode === "package" ? "tabela fechada (total por quantidade exata)" : "por unidade, com faixas"} — base R$ ${num(b.price)}; faixas: ${tiers || "nenhuma"}`,
+    `Quantidade mínima: ${Math.max(1, Math.round(num(b.minQty, 1)))}`, `Prazo: ${str(b.leadTime, 80) ?? "não informado"}`, `Opcionais: ${opts || "nenhum"}`,
+    `Descrição atual: ${str(b.description, 3000) ?? "(vazia)"}`, `Como funciona atual: ${str(b.howItWorks, 3000) ?? "(vazio)"}`,
+  ].join("\n");
+  const text = await completeText(
+    "Você escreve textos de produtos para uma gráfica rápida. Use SOMENTE os dados informados: não invente preços, prazos, medidas, materiais nem acabamentos. " +
+    "Responda apenas um JSON {\"description\": string, \"howItWorks\": string}. " +
+    "description: 2 a 4 frases claras para o cliente (o que é, material/formato quando informados) e, no fim, os valores exatamente como cadastrados (faixas de quantidade). " +
+    "howItWorks: 2 a 4 frases sobre como enviar a arte e o que está incluso ou cobrado à parte; se os dados não dizem, escreva só o que é seguro (ex.: arte enviada pelo cliente em PDF; criação de arte é cobrada à parte) sem inventar. " +
+    "Aproveite o que já está escrito, corrigindo e organizando. Português do Brasil, sem emojis, sem markdown.",
+    facts, 900);
+  if (!text) throw new HttpError(503, "A IA está desligada ou indisponível agora. Confira em Bot e IA.");
+  let out: any = null;
+  try { const m = text.match(/\{[\s\S]*\}/); out = m ? JSON.parse(m[0]) : null; } catch { out = null; }
+  const description = str(out?.description, 5000), howItWorks = str(out?.howItWorks, 5000);
+  if (!description && !howItWorks) throw new HttpError(502, "A IA não devolveu um texto utilizável. Tente de novo.");
+  res.json({ description, howItWorks });
+}));
+
 router.post("/products", requireRole("atendente"), ah(async (req, res) => { res.status(201).json(await prisma.product.create({ data: productData(req.body ?? {}) })); }));
 router.put("/products/:id", requireRole("atendente"), ah(async (req, res) => { res.json(await prisma.product.update({ where: { id: req.params.id }, data: productData(req.body ?? {}) })); }));
 router.delete("/products/:id", requireRole("atendente"), ah(async (req, res) => {
