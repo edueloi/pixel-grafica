@@ -62,3 +62,8 @@ html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
+
+/* cabeçalho em largura total (catálogo e produto) */
+.pxs .pxs-container-wide { padding-left: 16px; padding-right: 16px; }
+@media (min-width: 640px) { .pxs .pxs-container-wide { padding-left: 24px; padding-right: 24px; } }
+@media (min-width: 1024px) { .pxs .pxs-container-wide { padding-left: 20px; padding-right: 28px; } }

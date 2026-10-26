@@ -43,6 +43,9 @@ const SiteLayout: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const c = home?.company;
   const wa = c?.whatsapp;
+  // catálogo e produto usam a tela inteira (painel lateral à esquerda): o cabeçalho acompanha
+  const wide = /\/(catalogo|produto)/.test(loc.pathname);
+  const box = wide ? 'pxs-container-wide' : 'pxs-container';
 
   useEffect(() => { setOpen(false); }, [loc.pathname, loc.hash]);
   useEffect(() => {
@@ -65,7 +68,7 @@ const SiteLayout: React.FC = () => {
 
       {/* faixa de contato */}
       <div className="hidden md:block bg-slate-900 text-slate-200 text-xs">
-        <div className="pxs-container flex items-center justify-between gap-4 py-2">
+        <div className={`${box} flex items-center justify-between gap-4 py-2`}>
           <div className="flex min-w-0 items-center gap-5">
             {c?.hours && <span className="flex min-w-0 items-center gap-1.5" title={oneLine(c.hours)}><Clock size={13} className="shrink-0" /><span className="truncate max-w-[34rem]">{oneLine(c.hours)}</span></span>}
             {c?.address && <span className="hidden xl:flex min-w-0 items-center gap-1.5" title={c.address}><MapPin size={13} className="shrink-0" /><span className="truncate max-w-[24rem]">{c.address}</span></span>}
@@ -78,7 +81,7 @@ const SiteLayout: React.FC = () => {
       </div>
 
       <header className={`sticky top-0 z-40 bg-white/95 backdrop-blur border-b ${scrolled ? 'border-slate-200 shadow-sm' : 'border-transparent'} transition-shadow`}>
-        <div className="pxs-container flex items-center justify-between gap-3 h-16">
+        <div className={`${box} flex items-center justify-between gap-3 h-16`}>
           <Brand />
           <nav className="hidden lg:flex items-center gap-1" aria-label="Principal">
             {nav.map((n) => (
@@ -122,7 +125,7 @@ const SiteLayout: React.FC = () => {
             : <Outlet />}
       </main>
 
-      <footer className="bg-slate-900 text-slate-300 mt-16">
+      <footer className={`bg-slate-900 text-slate-300 ${wide ? '' : 'mt-16'}`}>
         <div className="pxs-container py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-3">
             <Brand light />
