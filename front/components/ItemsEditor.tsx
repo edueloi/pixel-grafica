@@ -23,7 +23,8 @@ export const ItemsEditor: React.FC<{ items: LineItem[]; products: Product[]; onC
     <div className="space-y-2">
       {items.length === 0 && <p className="text-xs text-slate-500 py-2">Nenhum item. Escolha um produto abaixo ou adicione uma linha livre.</p>}
       {items.map((it, idx) => {
-        const p = productOf(it.productId);
+        // linhas de opcional ("Acabamento: …") têm valor fixo: não são recalculadas pela tabela do produto
+        const p = /^(Acabamento|Serviço): /.test(it.description) ? undefined : productOf(it.productId);
         return (
           <div key={idx} className="rounded-lg border border-slate-200 p-2.5 space-y-2 bg-white">
             <div className="flex items-start gap-2">
@@ -35,6 +36,24 @@ export const ItemsEditor: React.FC<{ items: LineItem[]; products: Product[]; onC
               <Input label="Preço unit." type="number" min={0} step="any" value={it.unitPrice} disabled={disabled} onChange={(e) => update(idx, { unitPrice: Number(e.target.value) })} />
               <div className="text-right pb-2"><p className="text-[11px] text-slate-500">Total</p><p className="text-[13px] font-semibold tabular-nums">{brl(lineTotal(it))}</p></div>
             </div>
+            {p && !!it.description && (p.options?.length ?? 0) > 0 && !/^(Acabamento|Serviço): /.test(it.description) && (
+              <fieldset className="rounded-md bg-slate-50 border border-slate-200 px-2.5 py-2">
+                <legend className="px-1 text-[11px] font-medium text-slate-600">Opcionais deste produto</legend>
+                <ul className="space-y-1">
+                  {p.options!.map((o) => {
+                    const desc = `${o.kind === 'servico' ? 'Serviço' : 'Acabamento'}: ${o.name} (${p.name})`;
+                    const on = items.some((x) => x.description === desc);
+                    return (
+                      <li key={o.name}><label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 accent-blue-600" disabled={disabled} checked={on}
+                          onChange={() => onChange(on ? items.filter((x) => x.description !== desc) : [...items, { productId: p.id, description: desc, quantity: 1, unitPrice: o.price, total: 0 }])} />
+                        <span className="flex-1">{o.name}</span><span className="tabular-nums font-medium text-teal-700">+ {brl(o.price)}</span>
+                      </label></li>
+                    );
+                  })}
+                </ul>
+              </fieldset>
+            )}
             {p && (() => { const r = quoteFor(p, it.quantity); return r.ok ? null : <p role="status" className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">{r.error} O preço unitário acima não foi recalculado: confira antes de salvar.</p>; })()}
           </div>
         );

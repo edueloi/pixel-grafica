@@ -79,7 +79,7 @@ const toolDefs: ToolDef[] = [
   {
     name: "calcular_preco",
     description: "Calcula o preço de um produto aplicando a faixa de quantidade. A quantidade é SEMPRE na unidade do produto: para 'milheiro' use 0.5 para 500 unidades e 2 para 2000; para 'm2' use os metros quadrados; para 'unidade' o número de unidades.",
-    parameters: { type: "object", properties: { produto: { type: "string", description: "Nome (ou parte) do produto" }, quantidade: { type: "number", description: "Quantidade na unidade do produto" } }, required: ["produto", "quantidade"] },
+    parameters: { type: "object", properties: { produto: { type: "string", description: "Nome (ou parte) do produto" }, quantidade: { type: "number", description: "Quantidade na unidade do produto" }, opcionais: { type: "array", items: { type: "string" }, description: "Acabamentos/serviços opcionais que o cliente quer, exatamente como em listar_produtos (opcionais). Cada um tem valor fixo por pedido e é somado ao total." } }, required: ["produto", "quantidade"] },
   },
   {
     name: "buscar_nos_arquivos",
@@ -106,7 +106,7 @@ const toolDefs: ToolDef[] = [
           type: "array",
           items: {
             type: "object",
-            properties: { produto: { type: "string" }, quantidade: { type: "number", description: "Na unidade do produto" }, observacao: { type: "string", description: "Formato, papel, acabamento…" } },
+            properties: { produto: { type: "string" }, quantidade: { type: "number", description: "Na unidade do produto" }, observacao: { type: "string", description: "Formato, papel, acabamento…" }, opcionais: { type: "array", items: { type: "string" }, description: "Opcionais que o cliente pediu para este produto (nome exato de listar_produtos). Cada um vira uma linha própria no orçamento." } },
             required: ["produto", "quantidade"],
           },
         },
@@ -287,7 +287,10 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       const qty = Number(args?.quantidade) || 0;
       const r = quoteWithOffer(p, qty);
       if (!r.ok) return { erro: r.error, produto: p.name };
-      return { produto: p.name, quantidade: qty, unidade: unitName[p.unit] ?? p.unit, ...("offerApplied" in r && r.offerApplied ? { oferta: "preço promocional já aplicado" } : {}), ...(r.exact ? {} : { preco_unitario: brl(r.unitPrice) }), total: brl(r.total), prazo: p.leadTime ?? "a consultar com a equipe", observacao: "Valor de tabela para impressão padrão; arte e frete não incluídos." };
+      const wantedOpts: string[] = Array.isArray(args?.opcionais) ? args.opcionais.map((x: unknown) => strip(String(x))) : [];
+      const chosenOpts = parseOptions(p.options).filter((o) => wantedOpts.includes(strip(o.name)));
+      const extras = Math.round(chosenOpts.reduce((s2, o) => s2 + o.price, 0) * 100) / 100;
+      return { produto: p.name, quantidade: qty, unidade: unitName[p.unit] ?? p.unit, ...("offerApplied" in r && r.offerApplied ? { oferta: "preço promocional já aplicado" } : {}), ...(r.exact ? {} : { preco_unitario: brl(r.unitPrice) }), total: brl(r.total + extras), ...(chosenOpts.length ? { opcionais_incluidos: chosenOpts.map((o) => `${o.name} (+${brl(o.price)})`), valor_do_produto_sem_opcionais: brl(r.total) } : {}), prazo: p.leadTime ?? "a consultar com a equipe", observacao: "Valor de tabela para impressão padrão; arte e frete não incluídos." };
     }
     case "buscar_nos_arquivos": {
       const hits = await searchFiles(conv, String(args?.consulta || ""));
@@ -350,6 +353,10 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
         const r = quoteWithOffer(p, q);
         if (!r.ok) return { erro: `${p.name}: ${r.error}` };
         lines.push({ productId: p.id, description: `${p.name}${it.observacao ? ` — ${String(it.observacao).slice(0, 150)}` : ""}`, quantity: q, unitPrice: r.unitPrice, total: r.total });
+        const wanted: string[] = Array.isArray(it.opcionais) ? it.opcionais.map((x: unknown) => strip(String(x))) : [];
+        for (const o of parseOptions(p.options).filter((o) => wanted.includes(strip(o.name)))) {
+          lines.push({ productId: p.id, description: `${o.kind === "servico" ? "Serviço" : "Acabamento"}: ${o.name} (${p.name})`, quantity: 1, unitPrice: o.price, total: o.price });
+        }
       }
       if (!lines.length) return { erro: "Informe ao menos um item." };
       // uma conversa por vez: chamadas repetidas/simultâneas da IA não podem gerar orçamentos duplicados
