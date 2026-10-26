@@ -9,7 +9,8 @@ const nav = [
   { label: 'Catálogo', to: `${SITE}/catalogo` },
   { label: 'Ofertas', to: { pathname: SITE, hash: '#ofertas' } },
   { label: 'Mais pedidos', to: { pathname: SITE, hash: '#mais-pedidos' } },
-  { label: 'Sobre', to: { pathname: SITE, hash: '#sobre' } },
+  { label: 'Sobre', to: `${SITE}/sobre` },
+  { label: 'Dúvidas', to: `${SITE}/duvidas` },
   { label: 'Contato', to: `${SITE}/contato` },
 ];
 

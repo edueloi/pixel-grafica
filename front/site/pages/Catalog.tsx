@@ -59,10 +59,10 @@ const Catalog: React.FC = () => {
             <input type="text" value={q} onChange={(e) => setParam('q', e.target.value)} placeholder="Buscar: cartão, banner, adesivo…" className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
           </label>
           {!byPopular && (
-            <label className="sm:w-44">
+            <label className="sm:w-40">
               <span className="sr-only">Ordenar por</span>
               <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 outline-none focus:bg-white focus:border-blue-500">
-                <option value="relevancia">Ordenar: destaque</option><option value="menor">Menor preço</option><option value="maior">Maior preço</option><option value="nome">Nome (A–Z)</option>
+                <option value="relevancia">Destaques</option><option value="menor">Menor preço</option><option value="maior">Maior preço</option><option value="nome">Nome (A–Z)</option>
               </select>
             </label>
           )}

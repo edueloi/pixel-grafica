@@ -1,33 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, MessageCircle, Calculator, ListChecks, Send, Download, FileText, CreditCard, Truck, Palette, Printer, ChevronDown, HelpCircle, Zap } from 'lucide-react';
-import { SITE, fileSize, useSite, waLink, type SiteProduct } from '../siteApi';
+import { ArrowRight, MessageCircle, Calculator, ListChecks, Send, Printer, Zap, Store, HelpCircle, MapPin } from 'lucide-react';
+import { SITE, useSite, waLink, type SiteProduct } from '../siteApi';
 import { HeroCarousel, Marquee, ProductGrid, SectionHead, ProductImage, Reveal, categoryIcon, slidesFrom, type Slide } from '../components';
-
-const Faq: React.FC<{ items: { q: string; a: string }[] }> = ({ items }) => {
-  const [open, setOpen] = useState<number | null>(0);
-  return (
-    <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      {items.map((it, i) => (
-        <li key={it.q}>
-          <h3>
-            <button type="button" aria-expanded={open === i} aria-controls={`faq-${i}`} onClick={() => setOpen(open === i ? null : i)} className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left font-semibold text-slate-900 hover:bg-slate-50">
-              {it.q}<motion.span animate={{ rotate: open === i ? 180 : 0 }} className="shrink-0 text-blue-600"><ChevronDown size={20} /></motion.span>
-            </button>
-          </h3>
-          <AnimatePresence initial={false}>
-            {open === i && (
-              <motion.div id={`faq-${i}`} initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                <p className="px-5 pb-5 text-slate-600 leading-relaxed whitespace-pre-line">{it.a}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </li>
-      ))}
-    </ul>
-  );
-};
 
 const Home: React.FC = () => {
   const { home } = useSite();
@@ -65,21 +40,6 @@ const Home: React.FC = () => {
     ...(offers.length ? [{ key: 'd2', title: 'Ofertas imperdíveis', subtitle: 'Produtos com preço especial. Aproveite enquanto durar.', buttonText: 'Ver ofertas', buttonUrl: '#ofertas', collage: offers.slice(0, 3) }] : []),
     { key: 'd3', title: 'Orçamento rápido, do seu jeito', subtitle: 'Escolha os produtos, veja os valores e fale com a gente em poucos cliques.', buttonText: 'Montar meu orçamento', buttonUrl: `${SITE}/orcamento`, collage: [...collage].reverse() },
   ];
-
-  const info = [
-    c?.payment && { icon: CreditCard, title: 'Pagamento', text: c.payment },
-    c?.delivery && { icon: Truck, title: 'Entrega e retirada', text: c.delivery },
-    c?.artService && { icon: Palette, title: 'Criação de arte', text: c.artService },
-  ].filter(Boolean) as { icon: typeof Truck; title: string; text: string }[];
-
-  const faq = [
-    { q: 'Como faço um orçamento?', a: 'Escolha os produtos no catálogo, ajuste a quantidade e as opções, e adicione ao orçamento. Depois é só enviar o pedido: ele chega para a nossa equipe e você continua pelo WhatsApp para enviar a arte e combinar prazo e entrega.' },
-    c?.payment && { q: 'Quais as formas de pagamento?', a: c.payment },
-    c?.delivery && { q: 'Como funciona a entrega?', a: c.delivery },
-    c?.artService && { q: 'A criação da arte está inclusa?', a: c.artService },
-    c?.hours && { q: 'Qual o horário de atendimento?', a: c.hours.replace(/\s*·\s*\n/g, '\n') },
-    c?.address && { q: 'Onde fica a loja?', a: c.address },
-  ].filter(Boolean) as { q: string; a: string }[];
 
   return (
     <>
@@ -176,48 +136,26 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* catálogos em PDF */}
-      {home!.catalogs.length > 0 && (
-        <section id="catalogos" className="pxs-container pt-20">
-          <SectionHead eyebrow="Catálogos e modelos" title="Baixe nossos catálogos" text="Materiais em PDF com modelos e opções para você consultar." />
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {home!.catalogs.map((f, i) => (
-              <Reveal as="li" key={f.id} delay={i * 0.05}><a href={`/api/site/catalogs/${f.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 hover:border-blue-300 hover:shadow-md transition">
-                <span className="h-12 w-12 shrink-0 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center"><FileText size={24} /></span>
-                <span className="min-w-0 flex-1"><span className="block font-medium text-slate-900 truncate">{f.name.replace(/\.[^.]+$/, '')}</span><span className="text-xs text-slate-500">PDF · {fileSize(f.size)}</span></span>
-                <Download size={18} className="text-blue-600 shrink-0" />
-              </a></Reveal>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* sobre */}
-      {(c?.aboutText || info.length > 0) && (
-        <section id="sobre" className="pxs-container pt-20">
-          <div className="grid gap-8 lg:grid-cols-5 items-start">
-            <div className="lg:col-span-3">
-              <SectionHead eyebrow="Sobre nós" title={c?.name ? `Conheça a ${c.name}` : 'Conheça a gráfica'} />
-              {c?.aboutText && <Reveal className="space-y-3 text-slate-600 leading-relaxed">{c.aboutText.split(/\n{2,}/).map((t, i) => <p key={i} className="whitespace-pre-line">{t}</p>)}</Reveal>}
-            </div>
-            {info.length > 0 && (
-              <ul className="lg:col-span-2 space-y-3">
-                {info.map(({ icon: Icon, title, text }, i) => (
-                  <Reveal as="li" key={title} delay={i * 0.08} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4"><span className="h-10 w-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><Icon size={20} /></span><div className="min-w-0"><p className="font-semibold text-slate-900">{title}</p><p className="text-sm text-slate-600 whitespace-pre-line break-words">{text}</p></div></Reveal>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* dúvidas frequentes */}
-      {faq.length > 1 && (
-        <section id="duvidas" className="pxs-container pt-20">
-          <SectionHead eyebrow="Dúvidas frequentes" title="Perguntas que sempre recebemos" action={<span className="hidden sm:inline-flex items-center gap-1.5 text-sm text-slate-500"><HelpCircle size={16} />Não achou? Chame no WhatsApp.</span>} />
-          <Reveal className="max-w-3xl"><Faq items={faq} /></Reveal>
-        </section>
-      )}
+      {/* conheça mais: cada assunto na sua página */}
+      <section className="pxs-container pt-20" aria-label="Conheça mais">
+        <SectionHead eyebrow="Conheça mais" title="Tudo o que você precisa saber" />
+        <ul className="grid gap-4 md:grid-cols-3">
+          {[
+            { to: `${SITE}/sobre`, icon: Store, tone: 'bg-blue-50 text-blue-600', t: 'Sobre a gráfica', d: 'Nossa história, como trabalhamos, pagamento, entrega e catálogos em PDF.' },
+            { to: `${SITE}/duvidas`, icon: HelpCircle, tone: 'bg-amber-50 text-amber-600', t: 'Dúvidas frequentes', d: 'Pagamento, entrega, criação de arte e horário, de forma rápida.' },
+            { to: `${SITE}/contato`, icon: MapPin, tone: 'bg-emerald-50 text-emerald-600', t: 'Fale com a loja', d: 'WhatsApp, telefone, endereço com mapa e formulário de mensagem.' },
+          ].map(({ to, icon: Icon, tone, t, d }, i) => (
+            <Reveal as="li" key={t} delay={i * 0.08}>
+              <Link to={to} className="pxs-glow group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-lg hover:-translate-y-0.5 transition">
+                <span className={`h-11 w-11 rounded-xl flex items-center justify-center ${tone}`}><Icon size={22} /></span>
+                <h3 className="mt-4 font-semibold text-slate-900">{t}</h3>
+                <p className="mt-1 text-sm text-slate-600 flex-1">{d}</p>
+                <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-700 group-hover:gap-2 transition-all">Abrir<ArrowRight size={15} /></span>
+              </Link>
+            </Reveal>
+          ))}
+        </ul>
+      </section>
 
       {/* chamada final */}
       <section className="pxs-container pt-20">

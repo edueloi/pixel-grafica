@@ -58,6 +58,21 @@ export function priceFrom(p: SiteProduct): { amount: number; old?: number; capti
 /** Soma dos acabamentos e serviços opcionais escolhidos. */
 export const extrasTotal = (p: SiteProduct, names?: string[]) => Math.round((p.options ?? []).filter((o) => names?.includes(o.name)).reduce((s, o) => s + o.price, 0) * 100) / 100;
 
+/** Horário de várias linhas (ou separado por “·”) vira uma lista limpa. */
+export const hourLines = (v?: string | null) => (v ? v.split(/\n+|\s·\s/).map((s) => s.replace(/[·]\s*$/, '').trim()).filter(Boolean) : []);
+
+/** Perguntas frequentes montadas só com dados reais da loja. */
+export function buildFaq(c: SiteCompany | null): { q: string; a: string }[] {
+  return [
+    { q: 'Como faço um orçamento?', a: 'Escolha os produtos no catálogo, ajuste a quantidade e as opções, e adicione ao orçamento. Depois é só fazer o pedido: ele chega para a nossa equipe e você continua pelo WhatsApp para enviar a arte e combinar prazo e entrega.' },
+    c?.payment && { q: 'Quais as formas de pagamento?', a: c.payment },
+    c?.delivery && { q: 'Como funciona a entrega?', a: c.delivery },
+    c?.artService && { q: 'A criação da arte está inclusa?', a: c.artService },
+    c?.hours && { q: 'Qual o horário de atendimento?', a: hourLines(c.hours).join('\n') },
+    c?.address && { q: 'Onde fica a loja?', a: c.address },
+  ].filter(Boolean) as { q: string; a: string }[];
+}
+
 export type Calc = { ok: true; unit: number; total: number; offer: boolean } | { ok: false; error: string };
 /** Mesma regra do servidor (back/src/lib/pricing.ts), para o cliente ver o valor enquanto digita. */
 export function calcPrice(p: SiteProduct, qty: number): Calc {

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, useInView, animate, useScroll, useTransform, type MotionValue } from 'motion/react';
 import {
-  ChevronLeft, ChevronRight, ArrowRight, Plus, Check, X, Flame, Star, Search, LayoutGrid, Tag, Trophy, MessageCircle, Menu as MenuIcon,
+  ChevronLeft, ChevronRight, ChevronDown, ArrowRight, Plus, Check, X, Flame, Star, Search, LayoutGrid, Tag, Trophy, MessageCircle, Menu as MenuIcon,
   CreditCard, Flag, Sticker, FileText, Printer, Shirt, Coffee, Stamp, StickyNote, Mail, Calendar, BookOpen, Layers, Image as ImageIcon, IdCard, Book, type LucideIcon,
 } from 'lucide-react';
 import { SITE, bannerUrl, brl, imgUrl, priceFrom, setScrollLock, unitName, useCart, useSite, waLink, type SiteBanner, type SiteProduct } from './siteApi';
@@ -47,6 +47,46 @@ export const NumberTicker: React.FC<{ value: number; className?: string }> = ({ 
     return () => c.stop();
   }, [inView, value, reduce]);
   return <span ref={ref} className={`tabular-nums ${className ?? ''}`}>{n.toLocaleString('pt-BR')}</span>;
+};
+
+// ── Cabeçalho das páginas internas (Sobre, Dúvidas…) ──────────────────────────
+export const PageHero: React.FC<{ eyebrow: string; title: string; text?: string; crumbs?: { label: string }[] }> = ({ eyebrow, title, text, crumbs }) => (
+  <section className="pxs-aurora relative overflow-hidden text-white">
+    <div className="pxs-dots absolute inset-0" aria-hidden="true" />
+    <span className="pxs-float absolute right-[12%] top-6 h-10 w-10 rounded-full bg-pink-500/80 hidden sm:block" aria-hidden="true" />
+    <span className="pxs-float absolute right-[22%] bottom-4 h-6 w-6 rounded-full bg-amber-400/90 hidden sm:block" style={{ animationDelay: '1.3s' }} aria-hidden="true" />
+    <div className="pxs-container relative py-10 sm:py-14">
+      <nav aria-label="Você está em" className="text-xs text-blue-100/90 mb-3"><Link to={SITE} className="hover:text-white">Início</Link>{crumbs?.map((c) => <span key={c.label}> <span aria-hidden="true">/</span> {c.label}</span>)}</nav>
+      <p className="text-xs font-semibold uppercase tracking-[.18em] text-amber-300">{eyebrow}</p>
+      <h1 className="mt-1.5 text-2xl sm:text-4xl font-bold leading-tight max-w-3xl">{title}</h1>
+      {text && <p className="mt-3 max-w-2xl text-sm sm:text-base text-blue-100">{text}</p>}
+    </div>
+  </section>
+);
+
+// ── Perguntas frequentes em sanfona ───────────────────────────────────────────
+export const Faq: React.FC<{ items: { q: string; a: string }[] }> = ({ items }) => {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      {items.map((it, i) => (
+        <li key={it.q}>
+          <h3>
+            <button type="button" aria-expanded={open === i} aria-controls={`faq-${i}`} onClick={() => setOpen(open === i ? null : i)} className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left text-[15px] font-semibold text-slate-900 hover:bg-slate-50">
+              {it.q}<motion.span animate={{ rotate: open === i ? 180 : 0 }} className="shrink-0 text-blue-600"><ChevronDown size={18} /></motion.span>
+            </button>
+          </h3>
+          <AnimatePresence initial={false}>
+            {open === i && (
+              <motion.div id={`faq-${i}`} initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
+                <p className="px-5 pb-5 text-sm text-slate-600 leading-relaxed whitespace-pre-line">{it.a}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </li>
+      ))}
+    </ul>
+  );
 };
 
 // ── Títulos de seção ──────────────────────────────────────────────────────────
@@ -192,7 +232,7 @@ export const ProductCard: React.FC<{ p: SiteProduct; badge?: 'popular' }> = ({ p
   return (
     <article className="pxs-glow group relative flex flex-col h-full rounded-2xl bg-white border border-slate-200 overflow-hidden hover:shadow-xl hover:shadow-slate-900/10 hover:-translate-y-1 transition duration-300">
       <Link to={`${SITE}/produto/${p.id}`} className="block" aria-label={`Ver ${p.name}`}>
-        <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden">
+        <div className="relative aspect-[16/11] bg-slate-100 overflow-hidden">
           <ProductImage p={p} className="h-full w-full group-hover:scale-105 transition-transform duration-500" />
           <div className="absolute left-3 top-3 flex flex-col gap-1.5 items-start">
             {price.old && <span className="inline-flex items-center gap-1 rounded-full bg-pink-600 text-white text-[11px] font-bold px-2.5 py-1 shadow"><Flame size={12} />{discount > 0 ? `-${discount}%` : 'Oferta'}</span>}
@@ -217,7 +257,7 @@ export const ProductCard: React.FC<{ p: SiteProduct; badge?: 'popular' }> = ({ p
 };
 
 export const ProductGrid: React.FC<{ items: SiteProduct[]; badge?: 'popular'; wide?: boolean }> = ({ items, badge, wide }) => (
-  <ul className={`grid grid-cols-2 gap-3 sm:gap-4 ${wide ? 'md:grid-cols-3 xl:grid-cols-4 min-[1700px]:grid-cols-5' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
+  <ul className={`grid grid-cols-2 gap-3 sm:gap-4 ${wide ? 'md:grid-cols-3 xl:grid-cols-4 min-[1560px]:grid-cols-5' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
     {items.map((p, i) => <Reveal as="li" key={p.id} delay={Math.min(i, 7) * 0.05} y={18} className="min-w-0"><ProductCard p={p} badge={badge} /></Reveal>)}
   </ul>
 );

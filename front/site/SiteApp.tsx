@@ -10,6 +10,8 @@ import Catalog from './pages/Catalog';
 import ProductPage from './pages/ProductPage';
 import QuotePage from './pages/QuotePage';
 import ContactPage from './pages/ContactPage';
+import AboutPage from './pages/AboutPage';
+import FaqPage from './pages/FaqPage';
 
 /** Rola para a seção do endereço (#ofertas…) ou volta ao topo ao trocar de página. */
 const ScrollManager: React.FC = () => {
@@ -79,6 +81,8 @@ const SiteApp: React.FC = () => {
             <Route path="catalogo" element={<Catalog />} />
             <Route path="produto/:id" element={<ProductPage />} />
             <Route path="orcamento" element={<QuotePage />} />
+            <Route path="sobre" element={<AboutPage />} />
+            <Route path="duvidas" element={<FaqPage />} />
             <Route path="contato" element={<ContactPage />} />
             <Route path="*" element={<Home />} />
           </Route>
