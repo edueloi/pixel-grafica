@@ -3,10 +3,25 @@
 .pxs .font-black { font-weight: 800 !important; }
 .pxs .font-bold { font-weight: 700 !important; }
 .pxs .font-semibold { font-weight: 600 !important; }
+/* campos: 16 px no celular (evita o zoom do iPhone) e 13,5 px no computador */
 .pxs input[type="text"], .pxs input[type="email"], .pxs input[type="tel"], .pxs input[type="number"], .pxs select, .pxs textarea { font-size: 16px !important; }
+@media (min-width: 1024px) {
+  html:has(.pxs) { font-size: 14px; } /* no computador tudo (textos, botões, espaços) fica ~12% menor: mais refinado e cabem mais produtos */
+  .pxs input[type="text"], .pxs input[type="email"], .pxs input[type="tel"], .pxs input[type="number"], .pxs select, .pxs textarea { font-size: 13.5px !important; }
+}
+
+/* dropdowns com visual próprio (sem a setinha e a caixa nativas do navegador) */
+.pxs select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 2.1rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right .7rem center; background-size: 14px;
+}
+.pxs select:hover { border-color: #94a3b8; }
+.pxs input[type="number"]::-webkit-outer-spin-button, .pxs input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pxs input[type="number"] { -moz-appearance: textfield; }
 .pxs h1, .pxs h2, .pxs h3 { letter-spacing: -0.02em; }
 .pxs a, .pxs button { -webkit-tap-highlight-color: transparent; }
-.pxs :focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; border-radius: 6px; }
+.pxs :focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; border-radius: 6px; }
 .pxs .pxs-container { max-width: 1240px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
 @media (min-width: 640px) { .pxs .pxs-container { padding-left: 24px; padding-right: 24px; } }
 

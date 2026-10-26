@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, MessageCircle, Calculator, ListChecks, Send, Download, FileText, CreditCard, Truck, Palette, Printer, ChevronDown, HelpCircle, Zap } from 'lucide-react';
 import { SITE, fileSize, useSite, waLink, type SiteProduct } from '../siteApi';
-import { HeroCarousel, Marquee, NumberTicker, ProductGrid, SectionHead, ProductImage, Reveal, categoryIcon, slidesFrom, type Slide } from '../components';
+import { HeroCarousel, Marquee, ProductGrid, SectionHead, ProductImage, Reveal, categoryIcon, slidesFrom, type Slide } from '../components';
 
 const Faq: React.FC<{ items: { q: string; a: string }[] }> = ({ items }) => {
   const [open, setOpen] = useState<number | null>(0);
@@ -146,22 +146,6 @@ const Home: React.FC = () => {
         <section id="mais-pedidos" className="pxs-container pt-20">
           <SectionHead eyebrow={popular.length >= 2 ? 'Mais pedidos' : 'Destaques'} title={popular.length >= 2 ? 'O que nossos clientes mais pedem' : 'Produtos em destaque'} action={<Link to={`${SITE}/catalogo`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 hover:underline">Catálogo completo<ArrowRight size={16} /></Link>} />
           <ProductGrid items={showcase} badge={popular.length >= 2 ? 'popular' : undefined} />
-        </section>
-      )}
-
-      {/* catálogo em números */}
-      {products.length > 0 && (
-        <section className="pxs-container pt-20" aria-label="Catálogo em números">
-          <ul className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {[
-              { v: products.length, l: 'produtos no catálogo' }, { v: categories.length, l: 'categorias' },
-              { v: offers.length, l: offers.length === 1 ? 'oferta ativa' : 'ofertas ativas' }, { v: products.reduce((s, p) => s + p.images.length, 0), l: 'fotos de exemplo' },
-            ].filter((x) => x.v > 0).map((x, i) => (
-              <Reveal as="li" key={x.l} delay={i * 0.07} className="rounded-2xl bg-gradient-to-br from-slate-900 to-blue-900 text-white p-5 text-center">
-                <p className="text-3xl sm:text-4xl font-bold"><NumberTicker value={x.v} /></p><p className="mt-1 text-xs sm:text-sm text-slate-300">{x.l}</p>
-              </Reveal>
-            ))}
-          </ul>
         </section>
       )}
 

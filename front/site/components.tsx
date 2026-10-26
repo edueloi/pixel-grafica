@@ -67,8 +67,8 @@ export const ProductImage: React.FC<{ p: Pick<SiteProduct, 'name' | 'category' |
   const Icon = categoryIcon(p.category);
   return (
     <div className={`relative overflow-hidden bg-gradient-to-br ${toneOf(p.category)} flex flex-col items-center justify-center ${className}`} role="img" aria-label={`${p.name} (foto em breve)`}>
-      <Icon size={44} strokeWidth={1.6} className="relative opacity-80" />
-      <span className="relative mt-1.5 text-[11px] font-semibold uppercase tracking-wider opacity-70 px-2 text-center">{p.category}</span>
+      <Icon size={34} strokeWidth={1.6} className="relative opacity-80" />
+      <span className="relative mt-1 text-[10px] font-semibold uppercase tracking-wider opacity-70 px-2 text-center">{p.category}</span>
       <span className="absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-white/40" aria-hidden="true" />
       <span className="absolute -left-4 -top-4 h-14 w-14 rounded-full bg-white/30" aria-hidden="true" />
     </div>
@@ -201,15 +201,15 @@ export const ProductCard: React.FC<{ p: SiteProduct; badge?: 'popular' }> = ({ p
           </div>
         </div>
       </Link>
-      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 truncate">{p.category}</p>
-        <h3 className="mt-1 text-[15px] font-semibold text-slate-900 leading-snug line-clamp-2 min-h-[2.6em]"><Link to={`${SITE}/produto/${p.id}`} className="after:absolute after:inset-0 after:content-['']">{p.name}</Link></h3>
+      <div className="flex flex-1 flex-col p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 truncate">{p.category}</p>
+        <h3 className="mt-0.5 text-[13px] font-semibold text-slate-900 leading-snug line-clamp-2 min-h-[2.5em]"><Link to={`${SITE}/produto/${p.id}`} className="after:absolute after:inset-0 after:content-['']">{p.name}</Link></h3>
         <div className="mt-auto pt-3">
           <p className="text-[11px] text-slate-500">{p.pricingMode === 'package' ? 'a partir de' : price.old ? 'de' : 'a partir de'}{price.old && <span className="ml-1 line-through">{brl(price.old)}</span>}</p>
-          <p className="flex flex-wrap items-baseline gap-x-1.5"><span className="text-xl font-bold text-slate-900 tabular-nums">{brl(price.amount)}</span><span className="text-xs text-slate-500">{price.caption}</span></p>
+          <p className="flex flex-wrap items-baseline gap-x-1.5"><span className="text-[17px] font-bold text-slate-900 tabular-nums">{brl(price.amount)}</span><span className="text-xs text-slate-500">{price.caption}</span></p>
         </div>
-        <button type="button" onClick={add} className={`relative z-10 mt-3 inline-flex items-center justify-center gap-2 h-10 rounded-full text-sm font-semibold transition-colors ${added || inCart ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-900 text-white hover:bg-blue-600'}`} aria-label={`Adicionar ${p.name} ao orçamento`}>
-          {added ? <><Check size={16} />Adicionado</> : inCart ? <><Check size={16} />No orçamento</> : <><Plus size={16} />Adicionar</>}
+        <button type="button" onClick={add} className={`relative z-10 mt-2.5 inline-flex items-center justify-center gap-1.5 h-8 rounded-full text-xs font-semibold transition-colors ${added || inCart ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-900 text-white hover:bg-blue-600'}`} aria-label={`Adicionar ${p.name} ao orçamento`}>
+          {added ? <><Check size={14} />Adicionado</> : inCart ? <><Check size={14} />No orçamento</> : <><Plus size={14} />Adicionar</>}
         </button>
       </div>
     </article>
@@ -316,20 +316,20 @@ const SidebarContent: React.FC<{ active?: string; onNavigate?: () => void }> = (
 
   const item = (to: string, label: string, opts: { on: boolean; icon: React.ReactNode; count?: number; accent?: boolean }) => (
     <li key={label}><Link to={to} onClick={onNavigate} aria-current={opts.on ? 'page' : undefined}
-      className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${opts.on ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+      className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${opts.on ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
       {opts.on && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-blue-600" aria-hidden="true" />}
-      <span className={`shrink-0 ${opts.on ? 'text-blue-600' : opts.accent ? 'text-amber-500' : 'text-slate-400 group-hover:text-slate-600'}`}>{opts.icon}</span>
+      <span className={`shrink-0 scale-90 ${opts.on ? 'text-blue-600' : opts.accent ? 'text-amber-500' : 'text-slate-400 group-hover:text-slate-600'}`}>{opts.icon}</span>
       <span className="flex-1 min-w-0 truncate">{label}</span>
       {opts.count !== undefined && <span className={`rounded-md px-1.5 py-0.5 text-[11px] tabular-nums ${opts.on ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{opts.count}</span>}
     </Link></li>
   );
-  const group = (label: string) => <p className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-slate-400">{label}</p>;
+  const group = (label: string) => <p className="px-2.5 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[.12em] text-slate-400">{label}</p>;
 
   return (
     <div>
       <form role="search" onSubmit={(e) => { e.preventDefault(); navigate(`${SITE}/catalogo?q=${encodeURIComponent(q.trim())}`); onNavigate?.(); }} className="relative">
         <label className="sr-only" htmlFor="side-search">Buscar produto</label>
-        <input id="side-search" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar produto…" className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        <input id="side-search" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar produto…" className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
       </form>
       <nav aria-label="Catálogo de produtos">
@@ -385,7 +385,7 @@ export const ShopShell: React.FC<{ children: React.ReactNode; active?: string; l
           <div className="sticky top-16 h-[calc(100dvh-4rem)] overflow-y-auto px-4 py-5 no-scrollbar" data-lenis-prevent><SidebarContent active={active} /></div>
         </aside>
         <div className="min-w-0 bg-slate-50">
-          <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 max-w-[1500px]">{children}</div>
+          <div className="px-4 sm:px-6 lg:px-8 py-5 lg:py-6 max-w-[1500px]">{children}</div>
         </div>
       </div>
     </>

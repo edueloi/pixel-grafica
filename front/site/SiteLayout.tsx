@@ -87,15 +87,15 @@ const SiteLayout: React.FC = () => {
           <nav className="hidden lg:flex items-center gap-1" aria-label="Principal">
             {nav.map((n) => (
               <NavLink key={n.label} to={n.to} end={'end' in n ? n.end : false}
-                className={({ isActive }) => `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive && typeof n.to === 'string' ? 'text-blue-700 bg-blue-50' : 'text-slate-700 hover:text-blue-700 hover:bg-slate-100'}`}>{n.label}</NavLink>
+                className={({ isActive }) => `px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${isActive && typeof n.to === 'string' ? 'text-blue-700 bg-blue-50' : 'text-slate-700 hover:text-blue-700 hover:bg-slate-100'}`}>{n.label}</NavLink>
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <Link to={`${SITE}/orcamento`} className="relative inline-flex items-center gap-2 h-10 px-3 sm:px-4 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors" aria-label={`Meu orçamento, ${cart.count} ${cart.count === 1 ? 'item' : 'itens'}`}>
-              <ShoppingCart size={17} /><span className="hidden sm:inline">Meu orçamento</span>
+            <Link to={`${SITE}/orcamento`} className="relative inline-flex items-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-full bg-blue-600 text-white text-[13px] font-semibold hover:bg-blue-700 transition-colors" aria-label={`Meu orçamento, ${cart.count} ${cart.count === 1 ? 'item' : 'itens'}`}>
+              <ShoppingCart size={15} /><span className="hidden sm:inline">Meu orçamento</span>
               {cart.count > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-amber-400 text-slate-900 text-[11px] font-bold flex items-center justify-center">{cart.count}</span>}
             </Link>
-            {wa && <a href={waLink(wa, `Olá! Vim pelo site da ${c?.name ?? 'gráfica'} e gostaria de um orçamento.`)} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-2 h-10 px-4 rounded-full bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors"><MessageCircle size={17} />WhatsApp</a>}
+            {wa && <a href={waLink(wa, `Olá! Vim pelo site da ${c?.name ?? 'gráfica'} e gostaria de um orçamento.`)} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-emerald-500 text-white text-[13px] font-semibold hover:bg-emerald-600 transition-colors"><MessageCircle size={15} />WhatsApp</a>}
             <button type="button" className="lg:hidden h-10 w-10 rounded-full border border-slate-200 flex items-center justify-center" aria-label="Abrir menu" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={20} /></button>
           </div>
         </div>
