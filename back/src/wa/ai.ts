@@ -60,7 +60,7 @@ export const safeError = (e: unknown) =>
     .replace(/([?&](?:key|api_key)=)[^&\s]+/gi, "$1[chave protegida]").replace(/Bearer\s+\S+/gi, "Bearer [chave protegida]").slice(0, 400);
 
 export interface AiConversation { id: string; subject?: string | null; clientPhone: string; clientJid?: string | null; clientName?: string | null; customerId?: string | null }
-export interface AiResult { text: string | null; handoff?: { sector: string; reason: string } }
+export interface AiResult { text: string | null; handoff?: { sector: string; reason: string; notice?: boolean } }
 
 // ── Ferramentas (definição neutra, convertida para cada provedor) ────────────
 export interface ToolDef { name: string; description: string; parameters: Record<string, any> }
@@ -136,7 +136,7 @@ const toolDefs: ToolDef[] = [
   {
     name: "transferir_para_atendente",
     description: "Encaminha a conversa para uma pessoa da equipe. Use quando o cliente pedir um humano, para negociação, arte/criação, problema no pedido ou quando você não souber responder.",
-    parameters: { type: "object", properties: { setor: { type: "string", description: "Nome do setor" }, motivo: { type: "string", description: "Resumo curto do que o cliente precisa" } }, required: ["setor", "motivo"] },
+    parameters: { type: "object", properties: { setor: { type: "string", description: "Nome do setor" }, motivo: { type: "string", description: "Resumo curto do que o cliente precisa" }, somente_aviso: { type: "boolean", description: "true quando o cliente só passou uma INFORMAÇÃO (não pediu nada): a equipe recebe o recado, mas o cliente não é colocado numa fila de atendimento." } }, required: ["setor", "motivo"] },
   },
 ];
 
@@ -410,7 +410,7 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       return { enviado: true, numero_orcamento: quote.number, total: brl(Number(quote.total)), aviso: "O PDF já foi enviado ao cliente neste chat. Confirme em uma frase curta e pergunte se ele quer ajustar algo ou fechar." };
     }
     case "transferir_para_atendente": {
-      out.handoff = { sector: String(args?.setor || ""), reason: String(args?.motivo || "").slice(0, 300) };
+      out.handoff = { sector: String(args?.setor || ""), reason: String(args?.motivo || "").slice(0, 300), ...(args?.somente_aviso === true ? { notice: true } : {}) };
       return { ok: true, aviso: "Transferência solicitada. Avise o cliente em uma frase." };
     }
     default: return { erro: "Ferramenta desconhecida." };
@@ -542,7 +542,7 @@ CONVERSA:
 - Se o cliente não souber o que escolher, faça UMA pergunta por vez (para que serve, quantidade, formato) e sugira a melhor opção do catálogo, explicando em uma frase por quê.
 - Quando o cliente confirmar produto e quantidade, registre com criar_orcamento e ofereça enviar o PDF do orçamento por aqui.
 - Se o cliente quiser ver exemplos, modelos ou fotos de um produto, use enviar_fotos_produto (só se o produto tiver fotos; senão descreva o produto e não prometa foto).
-- MENSAGEM SÓ INFORMATIVA (o contato avisa algo que ele mesmo vai fazer ou já fez: "estou finalizando as impressões", "passo aí às 17h", "já paguei", "vou buscar amanhã", ou é parceiro/fornecedor avisando um serviço dele): NÃO é pedido de atendimento. NÃO transfira por conta própria e NÃO diga que "já repassei para a equipe". Responda curto e simpático mostrando que entendeu exatamente o que ele disse (ex.: "Combinado! Anotei que o DTF fica pronto para retirada às 17h20."), diga que vai deixar o recado registrado e pergunte se ele quer que você chame alguém da equipe para atender ou se precisa de mais alguma coisa (ex.: "Quer que eu encaminhe para alguém da equipe, ou era só o aviso?"). Só use transferir_para_atendente se ele disser que sim; nesse caso, escreva no motivo a informação que ele passou. Se ele disser que era só o aviso, agradeça e encerre com simpatia.
+- MENSAGEM SÓ INFORMATIVA (o contato avisa algo que ele mesmo vai fazer ou já fez: "estou finalizando as impressões", "passo aí às 17h", "já paguei", "vou buscar amanhã", ou é parceiro/fornecedor avisando um serviço dele): não é pedido de atendimento, mas a EQUIPE PRECISA SABER. Faça os dois: (1) responda curto e simpático mostrando que entendeu exatamente o que ele disse (ex.: "Combinado! Anotei que o DTF fica pronto para retirada às 17h20."); (2) use transferir_para_atendente com somente_aviso=true, no setor que cuida do assunto (retirada/pedido/pagamento/andamento de serviço → Acompanhar pedido; valores/orçamento → Orçamentos; use o setor mais adequado da lista), e escreva no motivo a informação completa e quem passou. Diga ao cliente que já passou o recado para a pessoa certa da equipe e que, se precisar de algo, é só falar. NÃO diga que ele entrou numa fila e NÃO peça para descrever nada.
 - Use transferir_para_atendente quando: o cliente pedir uma pessoa, quiser negociar valor fora da tabela, tiver problema ou reclamação com um pedido, enviar arquivo para conferência, ou você não souber responder com segurança.
 - Nunca peça senha nem dados de cartão. CPF/CNPJ, e-mail e endereço só para o cadastro, seguindo a regra acima. Não diga que executou algo que não fez com uma ferramenta.
 - Setores disponíveis para transferência: ${sectors}.

@@ -120,7 +120,7 @@ async function matchKnowledge(text: string) {
 const positionText = (name: string, p: { position: number; total: number }) =>
   p.position <= 1 ? `Você é o próximo na fila do setor *${name}*. ⏳` : `Você está na posição *${p.position}* da fila do setor *${name}*. ⏳`;
 
-async function handoffToSector(state: ClientState, conv: { id: string; clientPhone: string }, sectorRef: { id?: string; name?: string }, note?: string) {
+async function handoffToSector(state: ClientState, conv: { id: string; clientPhone: string }, sectorRef: { id?: string; name?: string }, note?: string, opts?: { notice?: boolean }) {
   const sectors = await prisma.wppSector.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } });
   const wanted = strip(sectorRef.name ?? "");
   const sector = (sectorRef.id ? sectors.find((s) => s.id === sectorRef.id) : null)
@@ -135,10 +135,10 @@ async function handoffToSector(state: ClientState, conv: { id: string; clientPho
   clientStates.set(stateKey(state.remoteJid), state);
   const pos = await queuePosition(updated);
   await record(conv.id, "system", `Cliente encaminhado ao setor ${sector.name}.${note ? ` ${note}` : ""}`);
-  await botSay(state, `Certo! Estou encaminhando você ao setor *${sector.name}*. 💙\n\n${positionText(sector.name, pos)}\nEnquanto isso, pode descrever o que precisa ou enviar seus arquivos por aqui. ✍️`, conv.id);
+  if (!opts?.notice) await botSay(state, `Certo! Estou encaminhando você ao setor *${sector.name}*. 💙\n\n${positionText(sector.name, pos)}\nEnquanto isso, pode descrever o que precisa ou enviar seus arquivos por aqui. ✍️`, conv.id);
   // ninguém do setor está no horário de atendimento agora: avisa o cliente (a conversa fica na fila para quando a equipe voltar)
   const team = parseAttendants(sector.attendants).filter((a) => a.available);
-  if (team.length && !team.some((a) => onShift(a))) {
+  if (team.length && !team.some((a) => onShift(a)) && !opts?.notice) {
     const cfg = await prisma.wppBotConfig.findFirst();
     const when = scheduleLabel(team);
     const msg = cfg?.offHoursMsg?.trim()
@@ -209,7 +209,7 @@ async function answerWithAi(state: ClientState, conv: any, text: string): Promis
   const r = await generateReply({ id: conv.id, subject: conv.subject, clientPhone: conv.clientPhone, clientJid: conv.clientJid, clientName: conv.clientName ?? state.pushName, customerId: conv.customerId }, text);
   if (!r) return false;
   if (r.text) await botSayBubbles(state, r.text);
-  if (r.handoff) await handoffToSector(state, conv, { name: r.handoff.sector }, r.handoff.reason);
+  if (r.handoff) await handoffToSector(state, conv, { name: r.handoff.sector }, r.handoff.reason, { notice: r.handoff.notice });
   return !!(r.text || r.handoff);
 }
 
