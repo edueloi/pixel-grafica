@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, useInView, animate, useScroll, useTransform, type MotionValue } from 'motion/react';
 import {
-  ChevronLeft, ChevronRight, ChevronDown, ArrowRight, Plus, Check, X, Flame, Star, Search, LayoutGrid, Tag, Trophy, MessageCircle, Menu as MenuIcon,
+  ChevronLeft, ChevronRight, ChevronDown, ArrowRight, Plus, Check, X, Flame, Star, Search, LayoutGrid, Trophy, MessageCircle, Menu as MenuIcon,
   CreditCard, Flag, Sticker, FileText, Printer, Shirt, Coffee, Stamp, StickyNote, Mail, Calendar, BookOpen, Layers, Image as ImageIcon, IdCard, Book, type LucideIcon,
 } from 'lucide-react';
 import { SITE, bannerUrl, brl, imgUrl, priceFrom, setScrollLock, unitName, useCart, useSite, waLink, type SiteBanner, type SiteProduct } from './siteApi';
@@ -345,14 +345,13 @@ const SidebarContent: React.FC<{ active?: string; onNavigate?: () => void }> = (
   const [q, setQ] = useState('');
   const products = home!.products;
   const cat = active ?? params.get('categoria') ?? '';
-  const oferta = params.get('oferta') === '1', popular = params.get('ordem') === 'popular';
+  const popular = params.get('ordem') === 'popular';
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     products.forEach((p) => counts.set(p.category, (counts.get(p.category) ?? 0) + 1));
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
   }, [products]);
-  const offers = products.filter((p) => p.offerPrice).length;
-  const isAll = !cat && !oferta && !popular && !active;
+  const isAll = !cat && !popular && !active;
 
   const item = (to: string, label: string, opts: { on: boolean; icon: React.ReactNode; count?: number; accent?: boolean }) => (
     <li key={label}><Link to={to} onClick={onNavigate} aria-current={opts.on ? 'page' : undefined}
@@ -376,7 +375,6 @@ const SidebarContent: React.FC<{ active?: string; onNavigate?: () => void }> = (
         {group('Catálogo')}
         <ul className="space-y-0.5">
           {item(`${SITE}/catalogo`, 'Todos os produtos', { on: isAll, icon: <LayoutGrid size={17} />, count: products.length })}
-          {offers > 0 && item(`${SITE}/catalogo?oferta=1`, 'Ofertas', { on: oferta, icon: <Tag size={17} />, count: offers, accent: true })}
           {home!.popular.length > 1 && item(`${SITE}/catalogo?ordem=popular`, 'Mais pedidos', { on: popular, icon: <Trophy size={17} />, accent: true })}
         </ul>
         {group('Categorias')}

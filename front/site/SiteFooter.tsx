@@ -4,7 +4,7 @@ import { ArrowUp, Clock, CreditCard, Instagram, Mail, MapPin, MessageCircle, Pal
 import { SITE, lenisRef, useSite, waLink } from './siteApi';
 
 const nav = [
-  { label: 'Início', to: SITE }, { label: 'Catálogo', to: `${SITE}/catalogo` }, { label: 'Ofertas', to: `${SITE}/catalogo?oferta=1` },
+  { label: 'Início', to: SITE }, { label: 'Catálogo', to: `${SITE}/catalogo` },
   { label: 'Mais pedidos', to: `${SITE}/catalogo?ordem=popular` }, { label: 'Sobre', to: `${SITE}/sobre` }, { label: 'Dúvidas', to: `${SITE}/duvidas` }, { label: 'Meu orçamento', to: `${SITE}/orcamento` }, { label: 'Contato', to: `${SITE}/contato` },
 ];
 

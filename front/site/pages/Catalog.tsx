@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, SearchX, LayoutGrid, List, X, Tag, Trophy } from 'lucide-react';
+import { Search, SearchX, LayoutGrid, List, X, Trophy } from 'lucide-react';
 import { SITE, priceFrom, useSite } from '../siteApi';
 import { ProductGrid, ProductRow, ShopShell } from '../components';
 
@@ -15,13 +15,12 @@ const Catalog: React.FC = () => {
   const [view, setView] = useState<'grade' | 'lista'>(() => { try { return localStorage.getItem(VIEW_KEY) === 'lista' ? 'lista' : 'grade'; } catch { return 'grade'; } });
   const q = params.get('q') ?? '';
   const category = params.get('categoria') ?? '';
-  const onlyOffers = params.get('oferta') === '1';
   const byPopular = params.get('ordem') === 'popular';
   const products = home!.products;
 
   const list = useMemo(() => {
     const term = norm(q.trim());
-    let out = products.filter((p) => (!category || p.category === category) && (!onlyOffers || p.offerPrice) && (!term || norm(`${p.name} ${p.category} ${p.description ?? ''}`).includes(term)));
+    let out = products.filter((p) => (!category || p.category === category) && (!term || norm(`${p.name} ${p.category} ${p.description ?? ''}`).includes(term)));
     if (byPopular) {
       const rank = new Map(home!.popular.map((id, i) => [id, i]));
       out = out.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
@@ -29,12 +28,12 @@ const Catalog: React.FC = () => {
     else if (sort === 'maior') out.sort((a, b) => priceFrom(b).amount - priceFrom(a).amount);
     else if (sort === 'nome') out.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     return out;
-  }, [products, q, category, onlyOffers, byPopular, sort, home]);
+  }, [products, q, category, byPopular, sort, home]);
 
-  const title = byPopular ? 'Mais pedidos' : onlyOffers ? 'Ofertas' : category || 'Todos os produtos';
+  const title = byPopular ? 'Mais pedidos' : category || 'Todos os produtos';
   const setParam = (k: string, v: string) => { const next = new URLSearchParams(params); v ? next.set(k, v) : next.delete(k); setParams(next, { replace: true }); };
   const pickView = (v: 'grade' | 'lista') => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sem armazenamento */ } };
-  const filters = [category && { label: category, clear: () => setParam('categoria', '') }, onlyOffers && { label: 'Só ofertas', clear: () => setParam('oferta', '') }, byPopular && { label: 'Mais pedidos', clear: () => setParam('ordem', '') }, q && { label: `“${q}”`, clear: () => setParam('q', '') }].filter(Boolean) as { label: string; clear: () => void }[];
+  const filters = [category && { label: category, clear: () => setParam('categoria', '') }, byPopular && { label: 'Mais pedidos', clear: () => setParam('ordem', '') }, q && { label: `“${q}”`, clear: () => setParam('q', '') }].filter(Boolean) as { label: string; clear: () => void }[];
 
   return (
     <ShopShell label={title}>
@@ -44,7 +43,7 @@ const Catalog: React.FC = () => {
       <div className="rounded-xl bg-white border border-slate-200 p-3.5 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-semibold text-slate-900 flex items-center gap-2">{byPopular ? <Trophy size={22} className="text-amber-500" /> : onlyOffers ? <Tag size={22} className="text-pink-500" /> : null}{title}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-slate-900 flex items-center gap-2">{byPopular ? <Trophy size={20} className="text-amber-500" /> : null}{title}</h1>
             <p className="mt-0.5 text-[13px] text-slate-500">{list.length} {list.length === 1 ? 'produto' : 'produtos'}{products.length !== list.length ? ` de ${products.length}` : ''} · adicione ao orçamento e veja o total na hora</p>
           </div>
           <div className="flex items-center gap-2" role="group" aria-label="Modo de exibição">

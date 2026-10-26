@@ -9,7 +9,6 @@ const Home: React.FC = () => {
   const c = home!.company;
   const products = home!.products;
 
-  const offers = useMemo(() => products.filter((p) => p.offerPrice), [products]);
   const popular = useMemo(() => {
     const byId = new Map(products.map((p) => [p.id, p]));
     return home!.popular.map((id) => byId.get(id)).filter(Boolean) as SiteProduct[];
@@ -28,16 +27,15 @@ const Home: React.FC = () => {
 
   // produtos da colagem do banner: prioriza os que têm foto
   const collage = useMemo(() => {
-    const pool = [...offers, ...featured, ...popular, ...products];
+    const pool = [...featured, ...popular, ...products];
     const seen = new Set<string>();
     const uniq = pool.filter((p) => !seen.has(p.id) && seen.add(p.id));
     return [...uniq.filter((p) => p.images.length), ...uniq.filter((p) => !p.images.length)].slice(0, 3);
-  }, [offers, featured, popular, products]);
+  }, [featured, popular, products]);
 
   // sem banners cadastrados, o carrossel nasce com chamadas padrão (dá para trocar em Configurações → Site)
   const slides: Slide[] = home!.banners.length ? slidesFrom(home!.banners) : [
     { key: 'd1', title: c?.tagline || 'Impressos que valorizam a sua marca', subtitle: 'Cartões, banners, adesivos, folders e muito mais. Monte o orçamento aqui no site e finalize pelo WhatsApp.', buttonText: 'Ver catálogo', buttonUrl: `${SITE}/catalogo`, collage },
-    ...(offers.length ? [{ key: 'd2', title: 'Ofertas imperdíveis', subtitle: 'Produtos com preço especial. Aproveite enquanto durar.', buttonText: 'Ver ofertas', buttonUrl: '#ofertas', collage: offers.slice(0, 3) }] : []),
     { key: 'd3', title: 'Orçamento rápido, do seu jeito', subtitle: 'Escolha os produtos, veja os valores e fale com a gente em poucos cliques.', buttonText: 'Montar meu orçamento', buttonUrl: `${SITE}/orcamento`, collage: [...collage].reverse() },
   ];
 
@@ -90,14 +88,6 @@ const Home: React.FC = () => {
               );
             })}
           </ul>
-        </section>
-      )}
-
-      {/* ofertas */}
-      {offers.length > 0 && (
-        <section id="ofertas" className="pxs-container pt-20">
-          <SectionHead eyebrow="Ofertas" title="Preços especiais" text="Condições promocionais que valem no orçamento do site." action={<Link to={`${SITE}/catalogo?oferta=1`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 hover:underline">Ver todas as ofertas<ArrowRight size={16} /></Link>} />
-          <ProductGrid items={offers.slice(0, 8)} />
         </section>
       )}
 

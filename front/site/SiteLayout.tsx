@@ -7,7 +7,6 @@ import SiteFooter from './SiteFooter';
 const nav = [
   { label: 'Início', to: SITE, end: true },
   { label: 'Catálogo', to: `${SITE}/catalogo` },
-  { label: 'Ofertas', to: { pathname: SITE, hash: '#ofertas' } },
   { label: 'Mais pedidos', to: { pathname: SITE, hash: '#mais-pedidos' } },
   { label: 'Sobre', to: `${SITE}/sobre` },
   { label: 'Dúvidas', to: `${SITE}/duvidas` },
