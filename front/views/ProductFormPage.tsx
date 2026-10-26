@@ -23,6 +23,7 @@ const ProductFormPage: React.FC = () => {
     categories: [...new Set((await api.get<Product[]>('/products?all=1')).map((p) => p.category))],
   }), [id], { live: false });
 
+  const [aiBusy, setAiBusy] = useState(false);
   const [f, setF] = useState({ name: '', category: 'Geral', unit: 'un', pricingMode: 'unit' as 'unit' | 'package', price: '', minQty: '1', leadTime: '', description: '', howItWorks: '', active: true, showOnSite: true, featured: false, offerPrice: '' });
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [opts, setOpts] = useState<{ name: string; price: string; kind: 'acabamento' | 'servico' }[]>([]);
@@ -45,7 +46,6 @@ const ProductFormPage: React.FC = () => {
   const u = unitLabel[f.unit] ?? 'unidade';
   const setTier = (i: number, k: keyof Tier, v: string) => setTiers((ts) => ts.map((t, idx) => (idx === i ? { ...t, [k]: v } : t)));
 
-  const [aiBusy, setAiBusy] = useState(false);
   const aiFill = async () => {
     if (aiBusy) return;
     if (!f.name.trim()) { setFormError('Informe o nome do produto para a IA analisar.'); return; }
