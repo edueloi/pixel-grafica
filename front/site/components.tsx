@@ -91,12 +91,12 @@ export const slidesFrom = (banners: SiteBanner[]): Slide[] => banners.map((b) =>
 const Collage: React.FC<{ items: SiteProduct[]; y?: MotionValue<string> }> = ({ items, y }) => {
   const reduce = useReducedMotion();
   const pos = [
-    { cls: 'left-[10%] top-0 w-[50%]', r: '-4deg', delay: 0.1 },
+    { cls: 'left-[12%] top-0 w-[50%]', r: '-4deg', delay: 0.1 },
     { cls: 'right-0 top-[120px] w-[44%]', r: '5deg', delay: 0.25 },
-    { cls: 'left-0 bottom-0 w-[44%]', r: '-2deg', delay: 0.4 },
+    { cls: 'left-0 top-[245px] w-[44%]', r: '-2deg', delay: 0.4 },
   ];
   return (
-    <motion.div style={y ? { y } : undefined} className="relative hidden md:block h-[420px] w-full max-w-[500px] justify-self-end" aria-hidden="true">
+    <motion.div style={y ? { y } : undefined} className="relative hidden md:block h-[450px] w-full max-w-[500px] justify-self-end" aria-hidden="true">
       <span className="pxs-float absolute -left-6 top-24 h-16 w-16 rounded-full bg-cyan-400/90 blur-[1px]" />
       <span className="pxs-float absolute right-10 -top-4 h-12 w-12 rounded-full bg-pink-500/90" style={{ animationDelay: '1.2s' }} />
       <span className="pxs-float absolute -right-2 bottom-24 h-20 w-20 rounded-full bg-amber-400/90" style={{ animationDelay: '2.1s' }} />
@@ -105,7 +105,7 @@ const Collage: React.FC<{ items: SiteProduct[]; y?: MotionValue<string> }> = ({ 
         return (
           <motion.div key={p.id} className={`absolute ${pos[i].cls}`} initial={reduce ? false : { opacity: 0, scale: 0.85, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.6, delay: pos[i].delay, ease: 'easeOut' }}>
             <div className="pxs-drift rounded-2xl bg-white shadow-2xl shadow-slate-950/40 overflow-hidden" style={{ ['--r' as string]: pos[i].r, animationDelay: `${i * 0.8}s` }}>
-              <ProductImage p={p} className="aspect-[4/3] w-full" />
+              <ProductImage p={p} className="aspect-[16/10] w-full" />
               <div className="px-3 py-2.5 text-slate-900"><p className="text-xs font-semibold truncate">{p.name}</p><p className="text-[11px] text-slate-500">a partir de <b className="text-slate-900 text-sm">{brl(pr.amount)}</b></p></div>
             </div>
           </motion.div>
