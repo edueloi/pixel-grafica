@@ -227,7 +227,7 @@ router.post("/files", upload.array("files", 10), ah(async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
   if (!files.length) throw new HttpError(400, "Selecione ao menos um arquivo.");
   const b = req.body ?? {};
-  const kind = ["order", "customer", "quote", "knowledge"].includes(b.kind) ? b.kind : b.orderId ? "order" : b.customerId ? "customer" : "knowledge";
+  const kind = ["order", "customer", "quote", "knowledge", "catalog"].includes(b.kind) ? b.kind : b.orderId ? "order" : b.customerId ? "customer" : "knowledge";
   const saved = [];
   for (const f of files) {
     saved.push(await saveAttachment({

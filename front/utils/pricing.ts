@@ -8,7 +8,7 @@ const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
 export const tiersOf = (p: Pick<Product, 'priceTiers'>) => [...(p.priceTiers ?? [])].sort((a, b) => a.minQty - b.minQty);
 
-export function quoteFor(p: Pick<Product, 'price' | 'minQty' | 'priceTiers' | 'pricingMode' | 'unit'>, qty: number): Quote {
+export function quoteFor(p: Pick<Product, 'price' | 'minQty' | 'priceTiers' | 'pricingMode' | 'unit'> & { offerPrice?: number | null }, qty: number): Quote {
   if (!(qty > 0)) return { ok: false, error: 'Informe a quantidade.' };
   const tiers = tiersOf(p);
   if (p.pricingMode === 'package') {
@@ -19,5 +19,6 @@ export function quoteFor(p: Pick<Product, 'price' | 'minQty' | 'priceTiers' | 'p
   if (p.minQty && qty < p.minQty) return { ok: false, error: `Quantidade mínima: ${p.minQty.toLocaleString('pt-BR')}.` };
   let price = Number(p.price);
   for (const t of tiers) if (qty >= t.minQty) price = t.price;
+  if (p.offerPrice && p.offerPrice > 0 && p.offerPrice < price) price = p.offerPrice; // oferta: vale o menor preço (igual ao servidor)
   return { ok: true, unitPrice: r6(price), total: r2(price * qty) };
 }

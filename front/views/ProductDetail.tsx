@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Package, Pencil, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { PageWrapper, ContentCard, PanelCard, DetailField, Button, Badge, EmptyState, Input, ConfirmModal, useToast } from '../components/ui';
 import { BackBar } from '../components/BackBar';
+import { photoUrl } from '../components/ProductPhotos';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
 import { brl, unitLabel } from '../utils/format';
@@ -58,6 +59,14 @@ const ProductDetail: React.FC = () => {
             <div className="text-right"><p className="text-[11px] text-slate-500">{pack ? 'A partir de' : `Preço por ${u}`}</p><p className="text-xl font-semibold tabular-nums text-blue-700">{brl(p.price)}</p></div>
           </div>
         </ContentCard>
+
+        {(p.images?.length ?? 0) > 0 && (
+          <ContentCard padding="md">
+            <ul className="flex gap-3 overflow-x-auto no-scrollbar" aria-label="Fotos do produto">
+              {p.images!.map((img) => <li key={img.id} className="shrink-0"><a href={photoUrl(img.id, false)} target="_blank" rel="noreferrer"><img src={photoUrl(img.id)} alt={img.name} loading="lazy" className="h-28 w-28 rounded-lg object-cover border border-slate-200" /></a></li>)}
+            </ul>
+          </ContentCard>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <PanelCard title={pack ? 'Quantidades e valores' : 'Preço por quantidade'}>

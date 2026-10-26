@@ -21,6 +21,16 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const r6 = (n: number) => Math.round(n * 1e6) / 1e6; // unitário: sem perder precisão em tabela fechada
 const fmt = (n: number) => n.toLocaleString("pt-BR");
 
+interface POffer extends P { offerPrice?: unknown }
+
+/** Igual a quotePrice, mas aplica a oferta do produto (preço unitário promocional, só em preço por unidade): vale o menor preço. */
+export function quoteWithOffer(p: POffer, qty: number): Quote & { offerApplied?: boolean } {
+  const r = quotePrice(p, qty);
+  const offer = Number(p.offerPrice);
+  if (!r.ok || p.pricingMode === "package" || !(offer > 0) || offer >= r.unitPrice) return r;
+  return { ok: true, unitPrice: r6(offer), total: r2(offer * qty), exact: false, offerApplied: true };
+}
+
 /** Total e preço por unidade para uma quantidade. Nunca inventa valor para quantidade fora de uma tabela fechada. */
 export function quotePrice(p: P, qty: number): Quote {
   if (!(qty > 0)) return { ok: false, error: "Quantidade inválida." };

@@ -11,6 +11,7 @@ export interface Customer {
 export interface Product {
   id: string; name: string; category: string; description?: string | null; howItWorks?: string | null; leadTime?: string | null; pricingMode?: 'unit' | 'package'; priceTiers?: { minQty: number; price: number }[] | null; unit: 'un' | 'milheiro' | 'm2' | 'folha';
   price: number; minQty: number; active: boolean;
+  offerPrice?: number | null; featured?: boolean; showOnSite?: boolean; images?: { id: string; name: string; sortOrder: number }[];
 }
 
 export interface LineItem { id?: string; productId?: string | null; description: string; quantity: number; unitPrice: number; total: number }
@@ -36,11 +37,11 @@ export interface OrderPayment { id: string; amount: number; method?: string | nu
 
 export interface Company {
   id: string; name: string; tagline?: string | null; document?: string | null; address?: string | null; phone?: string | null; email?: string | null; instagram?: string | null; website?: string | null;
-  hours?: string | null; payment?: string | null; delivery?: string | null; artService?: string | null; notes?: string | null;
+  hours?: string | null; payment?: string | null; delivery?: string | null; artService?: string | null; notes?: string | null; aboutText?: string | null;
 }
 
 export interface FileItem {
-  id: string; name: string; mime: string; size: number; kind: 'order' | 'customer' | 'quote' | 'knowledge' | 'chat'; aiEnabled: boolean;
+  id: string; name: string; mime: string; size: number; kind: 'order' | 'customer' | 'quote' | 'knowledge' | 'chat' | 'catalog'; aiEnabled: boolean;
   readable?: boolean; fromClient?: boolean; uploadedBy?: string | null; createdAt: string; orderId?: string | null; quoteId?: string | null; customerId?: string | null;
   customer?: { name: string } | null; order?: { number: number } | null; quote?: { number: number } | null;
 }

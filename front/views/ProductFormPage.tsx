@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Package, Loader2, Save, Plus, Trash2 } from 'lucide-react';
 import { PageWrapper, SectionTitle, ContentCard, PanelCard, Button, IconButton, Input, Select, Textarea, Switch, EmptyState, Alert, useToast } from '../components/ui';
 import { BackBar } from '../components/BackBar';
+import { ProductPhotos } from '../components/ProductPhotos';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
 import { unitLabel } from '../utils/format';
@@ -22,7 +23,7 @@ const ProductFormPage: React.FC = () => {
     categories: [...new Set((await api.get<Product[]>('/products?all=1')).map((p) => p.category))],
   }), [id], { live: false });
 
-  const [f, setF] = useState({ name: '', category: 'Geral', unit: 'un', pricingMode: 'unit' as 'unit' | 'package', price: '', minQty: '1', leadTime: '', description: '', howItWorks: '', active: true });
+  const [f, setF] = useState({ name: '', category: 'Geral', unit: 'un', pricingMode: 'unit' as 'unit' | 'package', price: '', minQty: '1', leadTime: '', description: '', howItWorks: '', active: true, showOnSite: true, featured: false, offerPrice: '' });
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -31,7 +32,7 @@ const ProductFormPage: React.FC = () => {
   useEffect(() => {
     const p = data?.product;
     if (!p) return;
-    setF({ name: p.name, category: p.category, unit: p.unit, pricingMode: p.pricingMode ?? 'unit', price: String(p.price), minQty: String(p.minQty), leadTime: p.leadTime ?? '', description: p.description ?? '', howItWorks: p.howItWorks ?? '', active: p.active });
+    setF({ name: p.name, category: p.category, unit: p.unit, pricingMode: p.pricingMode ?? 'unit', price: String(p.price), minQty: String(p.minQty), leadTime: p.leadTime ?? '', description: p.description ?? '', howItWorks: p.howItWorks ?? '', showOnSite: p.showOnSite !== false, featured: !!p.featured, offerPrice: p.offerPrice ? String(p.offerPrice) : '', active: p.active });
     setTiers((p.priceTiers ?? []).map((t) => ({ minQty: String(t.minQty), price: String(t.price) })));
   }, [data]);
 
@@ -55,12 +56,14 @@ const ProductFormPage: React.FC = () => {
       const first = [...parsed].sort((a, b) => a.minQty - b.minQty)[0];
       price = first.price; minQty = first.minQty; // "a partir de" = menor pacote
     } else if (!Number.isFinite(price) || price < 0) { setFormError('Preço inválido.'); return; }
+    const offer = Number(String(f.offerPrice).replace(',', '.')) || 0;
+    if (!pack && offer > 0 && offer >= price) { setFormError('O preço de oferta precisa ser menor que o preço normal.'); return; }
     setSaving(true); setFormError('');
     try {
-      const body = { ...f, price, minQty, priceTiers: parsed };
+      const body = { ...f, price, minQty, priceTiers: parsed, offerPrice: pack ? 0 : offer };
       const saved = isEditing ? await api.put<Product>(`/products/${id}`, body) : await api.post<Product>('/products', body);
       toast.success(isEditing ? 'Produto atualizado.' : 'Produto cadastrado.');
-      navigate(`/produtos/${saved.id}`);
+      navigate(isEditing ? `/produtos/${saved.id}` : `/produtos/${saved.id}/editar`); // produto novo: já abre a edição para adicionar as fotos
     } catch (e) { setFormError(errMsg(e)); setSaving(false); }
   };
 
@@ -108,6 +111,18 @@ const ProductFormPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </PanelCard>
+
+        <PanelCard title="Fotos" description="Aparecem no site e a Pixel IA envia como exemplo quando o cliente pede para ver o produto.">
+          {isEditing ? <ProductPhotos productId={id!} /> : <p className="text-xs text-slate-500">Cadastre o produto primeiro: logo depois do cadastro esta tela reabre para você adicionar as fotos.</p>}
+        </PanelCard>
+
+        <PanelCard title="No site" description="Como este produto aparece no site público da gráfica.">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-xs text-slate-700"><Switch checked={f.showOnSite} onCheckedChange={(v) => set('showOnSite', v)} aria-label="Mostrar no site" />Mostrar no site</label>
+            <label className="flex items-center gap-2 text-xs text-slate-700"><Switch checked={f.featured} onCheckedChange={(v) => set('featured', v)} aria-label="Destaque" />Destaque na página inicial</label>
+            {!pack && <Input label={`Preço de oferta por ${u} (R$)`} inputMode="decimal" value={f.offerPrice} onChange={(e) => set('offerPrice', e.target.value)} placeholder="Vazio = sem oferta" hint="Aparece em “Ofertas” e vale no site, no orçamento e para a IA." wrapperClassName="sm:col-span-2" />}
           </div>
         </PanelCard>
 

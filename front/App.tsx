@@ -27,6 +27,7 @@ import ServicesImportPage from './views/ServicesImportPage';
 import ServicesProfitPage from './views/ServicesProfitPage';
 import SettingsPage from './views/SettingsPage';
 import { api, getToken, setToken, setUnauthorizedHandler } from './api';
+const SiteApp = React.lazy(() => import('./site/SiteApp')); // site público: só carrega quando a pessoa abre /pagina-teste-site
 import type { User } from './types';
 
 const App: React.FC = () => {
@@ -43,7 +44,8 @@ const App: React.FC = () => {
     api.get<{ user: User }>('/auth/me').then((r) => setUser(r.user)).catch(() => setToken(null)).finally(() => setChecking(false));
   }, []);
 
-  if (checking) {
+  const isSite = window.location.pathname.startsWith('/pagina-teste-site');
+  if (checking && !isSite) {
     return <div role="status" className="h-[100dvh] flex items-center justify-center gap-2 text-sm text-slate-500"><Loader2 size={18} className="animate-spin" />Carregando…</div>;
   }
 
@@ -55,10 +57,12 @@ const App: React.FC = () => {
       <BrowserRouter>
         {!user ? (
           <Routes>
+            <Route path="/pagina-teste-site/*" element={<React.Suspense fallback={<div role="status" className="h-[100dvh] flex items-center justify-center text-sm text-slate-500">Carregando…</div>}><SiteApp /></React.Suspense>} />
             <Route path="*" element={<Login onLogin={(token, u) => { setToken(token); setUser(u); }} />} />
           </Routes>
         ) : (
           <Routes>
+            <Route path="/pagina-teste-site/*" element={<React.Suspense fallback={<div role="status" className="h-[100dvh] flex items-center justify-center text-sm text-slate-500">Carregando…</div>}><SiteApp /></React.Suspense>} />
             <Route path="/" element={<Layout currentUser={user} onLogout={logout} />}>
               <Route index element={<Dashboard user={user} />} />
               <Route path="pedidos" element={<Orders />} />

@@ -193,7 +193,7 @@ async function answerWithKnowledge(state: ClientState, conv: any, text: string):
 }
 
 async function answerWithAi(state: ClientState, conv: any, text: string): Promise<boolean> {
-  const r = await generateReply({ id: conv.id, clientPhone: conv.clientPhone, clientName: conv.clientName ?? state.pushName, customerId: conv.customerId }, text);
+  const r = await generateReply({ id: conv.id, clientPhone: conv.clientPhone, clientJid: conv.clientJid, clientName: conv.clientName ?? state.pushName, customerId: conv.customerId }, text);
   if (!r) return false;
   if (r.text) await botSayBubbles(state, r.text);
   if (r.handoff) await handoffToSector(state, conv, { name: r.handoff.sector }, r.handoff.reason);

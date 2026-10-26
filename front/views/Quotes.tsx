@@ -60,7 +60,7 @@ const Quotes: React.FC = () => {
               pagination={{ total: filtered.length, page: pag.page, pageSize: pag.pageSize, onPageChange: pag.setPage, onPageSizeChange: pag.setPageSize }}
               columns={[
                 { header: 'Nº', render: (q) => <span className="text-xs font-medium tabular-nums">#{q.number}</span> },
-                { header: 'Cliente', render: (q) => (<div><p className="text-xs font-medium text-slate-800">{q.customer.name}</p>{q.source === 'whatsapp' && <p className="text-[11px] text-blue-600 mt-0.5 flex items-center gap-1"><MessageCircle size={10} />via WhatsApp</p>}</div>) },
+                { header: 'Cliente', render: (q) => (<div><p className="text-xs font-medium text-slate-800">{q.customer.name}</p>{q.source === 'whatsapp' && <p className="text-[11px] text-blue-600 mt-0.5 flex items-center gap-1"><MessageCircle size={10} />via WhatsApp</p>}{q.source === 'site' && <p className="text-[11px] text-emerald-600 mt-0.5">pelo site</p>}</div>) },
                 { header: 'Data', hideOnMobile: true, render: (q) => <span className="text-xs whitespace-nowrap">{dateLabel(q.createdAt)}</span> },
                 { header: 'Total', render: (q) => <span className="text-xs font-semibold tabular-nums whitespace-nowrap">{brl(q.total)}</span> },
                 { header: 'Situação', render: (q) => <Badge size="sm" dot color={quoteStatus[q.status].color}>{quoteStatus[q.status].label}</Badge> },

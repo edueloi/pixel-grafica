@@ -15,6 +15,7 @@ import { HttpError } from "./routes/util.js";
 import { sseHandler, broadcastChange } from "./lib/events.js";
 import { router as bulkRouter } from "./routes/bulk.js";
 import { router as notesRouter } from "./routes/notes.js";
+import { publicSite, adminSite } from "./routes/site.js";
 import { isWhatsAppLocal, startLocalWhatsApp } from "./wa/index.js";
 
 const PORT = Number(process.env.PORT) || 3100;
@@ -34,8 +35,8 @@ app.post("/api/internal/notify", (req, res) => {
   if (!process.env.WA_INTERNAL_TOKEN || req.headers["x-wa-token"] !== process.env.WA_INTERNAL_TOKEN) return res.status(401).end();
   broadcastChange(); res.status(204).end();
 });
-app.use("/api", publicRouter);
-app.use("/api", requireAuth, coreRouter, salesRouter, wppRouter, servicesRouter, documentsRouter, settingsRouter, bulkRouter, notesRouter);
+app.use("/api", publicRouter, publicSite);
+app.use("/api", requireAuth, coreRouter, salesRouter, wppRouter, servicesRouter, documentsRouter, settingsRouter, bulkRouter, notesRouter, adminSite);
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "Rota não encontrada." }));
 

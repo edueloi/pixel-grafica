@@ -125,18 +125,20 @@ const productData = (b: any) => ({
   category: str(b.category, 80) ?? "Geral", description: str(b.description, 5000), howItWorks: str(b.howItWorks, 5000), priceTiers: parseTiers(b.priceTiers) as unknown as object[], unit: str(b.unit, 20) ?? "un",
   pricingMode: b.pricingMode === "package" ? "package" : "unit", leadTime: str(b.leadTime, 80),
   price: Math.max(0, num(b.price)), minQty: Math.max(1, Math.round(num(b.minQty, 1))),
+  offerPrice: num(b.offerPrice) > 0 ? num(b.offerPrice) : null, featured: !!b.featured, showOnSite: b.showOnSite === undefined ? true : !!b.showOnSite,
   active: b.active === undefined ? true : !!b.active,
 });
+const productImages = { images: { orderBy: { sortOrder: "asc" as const }, select: { id: true, name: true, sortOrder: true } } };
 
 router.get("/products", ah(async (req, res) => {
   const q = str(req.query.q, 100);
   res.json(await prisma.product.findMany({
     where: { ...(req.query.all === "1" ? {} : { active: true }), ...(q ? { OR: [{ name: { contains: q } }, { category: { contains: q } }] } : {}) },
-    orderBy: [{ category: "asc" }, { name: "asc" }],
+    orderBy: [{ category: "asc" }, { name: "asc" }], include: productImages,
   }));
 }));
 router.get("/products/:id", ah(async (req, res) => {
-  const p = await prisma.product.findUnique({ where: { id: req.params.id } });
+  const p = await prisma.product.findUnique({ where: { id: req.params.id }, include: productImages });
   if (!p) throw new HttpError(404, "Produto não encontrado.");
   res.json(p);
 }));
@@ -150,7 +152,7 @@ router.delete("/products/:id", requireRole("atendente"), ah(async (req, res) => 
 }));
 
 // ── Dados da empresa (a IA e as respostas prontas usam) ─────────────────────
-const COMPANY_FIELDS = { name: 120, tagline: 160, document: 20, address: 300, phone: 40, email: 160, instagram: 120, website: 160, hours: 300, payment: 500, delivery: 500, artService: 500, notes: 4000 } as const;
+const COMPANY_FIELDS = { aboutText: 3000, name: 120, tagline: 160, document: 20, address: 300, phone: 40, email: 160, instagram: 120, website: 160, hours: 300, payment: 500, delivery: 500, artService: 500, notes: 4000 } as const;
 const getCompany = async () => (await prisma.companyProfile.findFirst()) ?? prisma.companyProfile.create({ data: {} });
 
 router.get("/company", ah(async (_req, res) => { res.json(await getCompany()); }));

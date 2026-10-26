@@ -10,6 +10,7 @@ import { useLoad } from '../src/hooks/useLoad';
 import { useBulk } from '../src/hooks/useBulk';
 import { BulkBar } from '../components/BulkBar';
 import { brl, normalizeText, unitLabel } from '../utils/format';
+import { photoUrl } from '../components/ProductPhotos';
 import type { Product } from '../types';
 
 /** Lista de produtos e preços. Clicar abre a página do produto (detalhe, simulador de preço e edição). */
@@ -67,7 +68,7 @@ const Products: React.FC = () => {
               emptyMessage={<EmptyState icon={Package} title={search || category !== 'todas' ? 'Nenhum produto encontrado' : 'Nenhum produto ainda'} description={search || category !== 'todas' ? 'Ajuste os filtros.' : 'Cadastre os produtos e preços da gráfica.'} />}
               pagination={{ total: filtered.length, page: pag.page, pageSize: pag.pageSize, onPageChange: pag.setPage, onPageSizeChange: pag.setPageSize }}
               columns={[
-                { header: 'Produto', render: (p) => (<div><p className="text-xs font-medium text-slate-800">{p.name}</p><p className="text-[11px] text-slate-500 mt-0.5 max-w-sm truncate">{p.description}</p></div>) },
+                { header: 'Produto', render: (p) => (<div className="flex items-center gap-2.5"><span className="h-10 w-10 shrink-0 rounded-md border border-slate-200 bg-slate-100 overflow-hidden">{p.images?.[0] && <img src={photoUrl(p.images[0].id)} alt="" loading="lazy" className="h-full w-full object-cover" />}</span><div className="min-w-0"><p className="text-xs font-medium text-slate-800">{p.name}{p.offerPrice ? <span className="ml-1.5 text-[10px] text-emerald-700">oferta</span> : null}</p><p className="text-[11px] text-slate-500 mt-0.5 max-w-sm truncate">{p.description}</p></div></div>) },
                 { header: 'Categoria', hideOnMobile: true, render: (p) => <Badge size="sm">{p.category}</Badge> },
                 { header: 'Preço', render: (p) => (
                   <span className="text-xs font-semibold tabular-nums whitespace-nowrap">

@@ -68,12 +68,44 @@ model Product {
   priceTiers     Json?
   minQty         Int      @default(1)
   leadTime       String?  @db.VarChar(80) // prazo em texto livre: "4 a 5 dias úteis". Vazio = a consultar
+  offerPrice     Decimal? @db.Decimal(10, 2) // oferta: preço unitário promocional (vale no site, nos orçamentos e para a IA; só em preço por unidade)
+  featured       Boolean  @default(false) // destaque na página inicial do site
+  showOnSite     Boolean  @default(true) // aparece no site público
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   quoteItems QuoteItem[]
   orderItems OrderItem[]
+  images     ProductImage[]
+}
+
+// Fotos do produto (a primeira é a capa): aparecem no site e a IA envia como exemplo no WhatsApp
+model ProductImage {
+  id         String   @id @default(uuid())
+  productId  String
+  storedName String   @db.VarChar(120) // versão grande (back/uploads)
+  thumbName  String   @db.VarChar(120) // miniatura para listas e cards
+  name       String   @db.VarChar(255)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// Banners do carrossel do site
+model SiteBanner {
+  id         String   @id @default(uuid())
+  title      String   @db.VarChar(160)
+  subtitle   String?  @db.VarChar(300)
+  buttonText String?  @db.VarChar(60)
+  buttonUrl  String?  @db.VarChar(300)
+  storedName String?  @db.VarChar(120)
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
 }
 
 model Quote {
@@ -396,6 +428,7 @@ model CompanyProfile {
   notes          String?  @db.Text // outras informações que a IA deve saber
   logoFile       String?  @db.VarChar(120) // logotipo (arquivo em back/uploads): painel, login e PDFs
   logoMime       String?  @db.VarChar(60)
+  aboutText      String?  @db.Text // texto "Sobre nós" do site
   catalogVersion Int      @default(0) // controle do catálogo inicial semeado
   updatedAt      DateTime @updatedAt
 }

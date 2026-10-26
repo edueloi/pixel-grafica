@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings as SettingsIcon, Loader2, Save, Building2, PieChart, Bot, SlidersHorizontal, FileText, MessageSquareText, Plus, X, RotateCcw, ChevronRight } from 'lucide-react';
+import { Settings as SettingsIcon, Loader2, Save, Building2, PieChart, Bot, Globe, SlidersHorizontal, FileText, MessageSquareText, Plus, X, RotateCcw, ChevronRight } from 'lucide-react';
 import { PageWrapper, SectionTitle, ContentCard, PanelCard, Button, Input, Textarea, Tabs, EmptyState, ConfirmModal, Alert, Badge, useToast } from '../components/ui';
 import { api, errMsg } from '../api';
 import { useLoad } from '../src/hooks/useLoad';
@@ -8,15 +8,17 @@ import { useUrlTab } from '../src/hooks/useUrlTab';
 import { setSettingsCache } from '../src/hooks/useSettings';
 import { VariableEditor } from '../components/VariableEditor';
 import { LogoCard } from '../components/LogoCard';
+import { SiteSettings } from '../components/SiteSettings';
 import { varsFor, sampleVars, fill } from '../utils/messages';
 import { orderStages } from '../utils/format';
 import type { Settings } from '../types';
 
-type TabId = 'geral' | 'documentos' | 'mensagens';
+type TabId = 'geral' | 'documentos' | 'mensagens' | 'site';
 const tabs = [
   { id: 'geral', label: 'Geral', icon: SlidersHorizontal },
   { id: 'documentos', label: 'Documentos (PDF)', icon: FileText },
   { id: 'mensagens', label: 'Mensagens do WhatsApp', icon: MessageSquareText },
+  { id: 'site', label: 'Site', icon: Globe },
 ] as const;
 
 const Template: React.FC<{ label: string; value: string; onChange: (v: string) => void; kind: 'quote' | 'orderDoc' | 'payment' | 'stage' | 'ready'; rows?: number }> = ({ label, value, onChange, kind, rows = 3 }) => (
@@ -101,6 +103,7 @@ const SettingsPage: React.FC = () => {
         {dirty && <Alert variant="warning" title="Alterações não salvas">Clique em “Salvar alterações” para aplicar.</Alert>}
 
         <Tabs<TabId> items={tabs as unknown as { id: TabId; label: string; icon: typeof FileText }[]} value={tab} onChange={setTab} label="Configurações">
+          {tab === 'site' && <SiteSettings />}
           {tab === 'geral' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <div className="lg:col-span-2"><LogoCard /></div>

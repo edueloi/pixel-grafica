@@ -5,8 +5,11 @@ import type { Product } from "@prisma/client";
 import { prisma } from "../db.js";
 import { decryptSecret } from "../lib/secrets.js";
 import { strip, samePhone, brl, normalizePhone, digits, validDocument, validEmail } from "../lib/text.js";
-import { findCustomerByPhone } from "./conversations.js";
-import { parseTiers, quotePrice } from "../lib/pricing.js";
+import { findCustomerByPhone, record } from "./conversations.js";
+import fs from "fs";
+import sharp from "sharp";
+import { parseTiers, quoteWithOffer } from "../lib/pricing.js";
+import { filePath } from "../lib/files.js";
 
 export type Provider = "gemini" | "openai";
 
@@ -56,13 +59,18 @@ const safeError = (e: unknown) =>
     .replace(/AIza[\w-]{20,}/g, "[chave protegida]").replace(/sk-[\w-]{16,}/g, "[chave protegida]")
     .replace(/([?&](?:key|api_key)=)[^&\s]+/gi, "$1[chave protegida]").replace(/Bearer\s+\S+/gi, "Bearer [chave protegida]").slice(0, 400);
 
-export interface AiConversation { id: string; clientPhone: string; clientName?: string | null; customerId?: string | null }
+export interface AiConversation { id: string; clientPhone: string; clientJid?: string | null; clientName?: string | null; customerId?: string | null }
 export interface AiResult { text: string | null; handoff?: { sector: string; reason: string } }
 
 // ── Ferramentas (definição neutra, convertida para cada provedor) ────────────
 interface ToolDef { name: string; description: string; parameters: Record<string, any> }
 
 const toolDefs: ToolDef[] = [
+  {
+    name: "enviar_fotos_produto",
+    description: "Envia ao cliente, aqui no WhatsApp, fotos de exemplo de um produto (até 5). Use quando o cliente pedir para ver exemplos, modelos, fotos ou \"como fica\". Só funciona se o produto tiver fotos cadastradas (veja fotos_disponiveis em listar_produtos).",
+    parameters: { type: "object", properties: { produto: { type: "string", description: "Nome do produto, ex.: cartão de visita" } }, required: ["produto"] },
+  },
   {
     name: "listar_produtos",
     description: "Lista os produtos e serviços da gráfica com descrição, como funciona, unidade, faixas de preço por quantidade e prazo. Use para qualquer pergunta sobre o que a gráfica faz, como funciona um produto ou quanto custa.",
@@ -239,11 +247,12 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       const q = String(args?.busca || "").trim();
       const list = await prisma.product.findMany({
         where: { active: true, ...(q ? { OR: [{ name: { contains: q } }, { category: { contains: q } }, { description: { contains: q } }] } : {}) },
-        take: 15, orderBy: { category: "asc" },
+        take: 15, orderBy: { category: "asc" }, include: { images: { select: { id: true } } },
       });
       return list.length
         ? list.map((p) => ({
-            nome: p.name, categoria: p.category, detalhes: p.description, como_funciona: p.howItWorks,
+            nome: p.name, categoria: p.category, detalhes: p.description, como_funciona: p.howItWorks, fotos_disponiveis: p.images.length,
+            ...(Number(p.offerPrice) > 0 && p.pricingMode !== "package" ? { oferta_atual: `${brl(Number(p.offerPrice))} cada (preço promocional por unidade)` } : {}),
             unidade: unitName[p.unit] ?? p.unit, prazo: p.leadTime ?? "a consultar com a equipe",
             ...(p.pricingMode === "package"
               ? { tipo_de_preco: "TABELA FECHADA: só existe preço para estas quantidades exatas (valor TOTAL do pacote). Outras quantidades são sob consulta.", precos_por_quantidade: parseTiers(p.priceTiers).map((t) => `${t.minQty.toLocaleString("pt-BR")} un = ${brl(t.price)} no total`) }
@@ -251,14 +260,33 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
           }))
         : { aviso: "Nenhum produto encontrado com esse termo." };
     }
+    case "enviar_fotos_produto": {
+      const found = await findProduct(String(args?.produto || ""));
+      if ("error" in found) return { erro: found.error };
+      const p = found.product;
+      const imgs = await prisma.productImage.findMany({ where: { productId: p.id }, orderBy: { sortOrder: "asc" }, take: 5 });
+      if (!imgs.length) return { erro: `O produto ${p.name} ainda não tem fotos cadastradas. Não prometa foto: ofereça descrever o produto ou chamar a equipe.` };
+      const tr = await import("./transport.js");
+      const target = conv.clientJid || conv.clientPhone;
+      let sent = 0;
+      for (const [i, img] of imgs.entries()) {
+        const file = filePath(img.storedName);
+        if (!fs.existsSync(file)) continue;
+        const jpeg = await sharp(fs.readFileSync(file)).jpeg({ quality: 86 }).toBuffer(); // o WhatsApp mostra JPEG em qualquer aparelho
+        if (await tr.sendFile(target, jpeg, `${strip(p.name).replace(/\W+/g, "-")}-${i + 1}.jpg`, "image/jpeg", i === 0 ? `Exemplos de ${p.name}` : undefined)) sent++;
+      }
+      if (!sent) return { erro: "Não consegui enviar as fotos agora. Peça desculpas e ofereça chamar a equipe." };
+      await record(conv.id, "bot", `📷 ${sent} foto(s) de exemplo: ${p.name}`);
+      return { enviado: true, fotos: sent, produto: p.name, aviso: "As fotos já foram enviadas neste chat. Confirme em uma frase e pergunte o que o cliente achou ou se quer um orçamento." };
+    }
     case "calcular_preco": {
       const found = await findProduct(String(args?.produto || ""));
       if ("error" in found) return { erro: found.error };
       const p = found.product;
       const qty = Number(args?.quantidade) || 0;
-      const r = quotePrice(p, qty);
+      const r = quoteWithOffer(p, qty);
       if (!r.ok) return { erro: r.error, produto: p.name };
-      return { produto: p.name, quantidade: qty, unidade: unitName[p.unit] ?? p.unit, ...(r.exact ? {} : { preco_unitario: brl(r.unitPrice) }), total: brl(r.total), prazo: p.leadTime ?? "a consultar com a equipe", observacao: "Valor de tabela para impressão padrão; arte e frete não incluídos." };
+      return { produto: p.name, quantidade: qty, unidade: unitName[p.unit] ?? p.unit, ...("offerApplied" in r && r.offerApplied ? { oferta: "preço promocional já aplicado" } : {}), ...(r.exact ? {} : { preco_unitario: brl(r.unitPrice) }), total: brl(r.total), prazo: p.leadTime ?? "a consultar com a equipe", observacao: "Valor de tabela para impressão padrão; arte e frete não incluídos." };
     }
     case "buscar_nos_arquivos": {
       const hits = await searchFiles(conv, String(args?.consulta || ""));
@@ -318,7 +346,7 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
         if ("error" in found) return { erro: found.error };
         const p = found.product;
         const q = Number(it.quantidade) || 0;
-        const r = quotePrice(p, q);
+        const r = quoteWithOffer(p, q);
         if (!r.ok) return { erro: `${p.name}: ${r.error}` };
         lines.push({ productId: p.id, description: `${p.name}${it.observacao ? ` — ${String(it.observacao).slice(0, 150)}` : ""}`, quantity: q, unitPrice: r.unitPrice, total: r.total });
       }
@@ -501,6 +529,7 @@ PEDIDO DE ORÇAMENTO ("quero fazer um orçamento", "quanto fica…"): isso NÃO 
 CONVERSA:
 - Se o cliente não souber o que escolher, faça UMA pergunta por vez (para que serve, quantidade, formato) e sugira a melhor opção do catálogo, explicando em uma frase por quê.
 - Quando o cliente confirmar produto e quantidade, registre com criar_orcamento e ofereça enviar o PDF do orçamento por aqui.
+- Se o cliente quiser ver exemplos, modelos ou fotos de um produto, use enviar_fotos_produto (só se o produto tiver fotos; senão descreva o produto e não prometa foto).
 - Use transferir_para_atendente quando: o cliente pedir uma pessoa, quiser negociar valor fora da tabela, tiver problema ou reclamação com um pedido, enviar arquivo para conferência, ou você não souber responder com segurança.
 - Nunca peça senha nem dados de cartão. CPF/CNPJ, e-mail e endereço só para o cadastro, seguindo a regra acima. Não diga que executou algo que não fez com uma ferramenta.
 - Setores disponíveis para transferência: ${sectors}.

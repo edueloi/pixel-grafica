@@ -1,0 +1,25 @@
+/* Site público da gráfica: estilos isolados do painel (o painel deixa os pesos de fonte mais leves; aqui voltam ao normal). */
+.pxs { font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif; color: #0f172a; background: #fff; }
+.pxs .font-black { font-weight: 800 !important; }
+.pxs .font-bold { font-weight: 700 !important; }
+.pxs .font-semibold { font-weight: 600 !important; }
+.pxs input[type="text"], .pxs input[type="email"], .pxs input[type="tel"], .pxs input[type="number"], .pxs select, .pxs textarea { font-size: 16px !important; }
+.pxs h1, .pxs h2, .pxs h3 { letter-spacing: -0.02em; }
+.pxs a, .pxs button { -webkit-tap-highlight-color: transparent; }
+.pxs :focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; border-radius: 6px; }
+.pxs .pxs-container { max-width: 1240px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+@media (min-width: 640px) { .pxs .pxs-container { padding-left: 24px; padding-right: 24px; } }
+
+/* fundo de "pontos de retícula" de gráfica */
+.pxs .pxs-dots { background-image: radial-gradient(rgba(255,255,255,.14) 1.2px, transparent 1.2px); background-size: 18px 18px; }
+.pxs .pxs-hero-bg { background: radial-gradient(900px 400px at 85% -10%, rgba(251,191,36,.35), transparent 60%), radial-gradient(700px 400px at 0% 110%, rgba(219,39,119,.35), transparent 60%), linear-gradient(135deg, #0b1b4d 0%, #1d4ed8 100%); }
+.pxs .pxs-placeholder { background: conic-gradient(from 210deg at 70% 30%, #dbeafe, #fce7f3, #fef3c7, #dbeafe); }
+
+/* carrossel */
+.pxs .pxs-slide { transition: opacity .6s ease; }
+@media (prefers-reduced-motion: reduce) { .pxs .pxs-slide { transition: none; } }
+
+/* rolagem de seções com âncora: não esconde sob o cabeçalho fixo */
+.pxs section[id] { scroll-margin-top: 84px; }
+html:has(.pxs) { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html:has(.pxs) { scroll-behavior: auto; } }
