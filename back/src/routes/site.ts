@@ -10,6 +10,8 @@ import { filePath } from "../lib/files.js";
 import { saveSiteImage } from "../lib/images.js";
 import { quoteWithOffer, parseTiers, parseOptions } from "../lib/pricing.js";
 import { digits, normalizePhone, samePhone } from "../lib/text.js";
+import * as wa from "../wa/index.js";
+import { parseAttendants } from "../wa/conversations.js";
 
 export const publicSite = Router();
 export const adminSite = Router();
@@ -30,6 +32,18 @@ function tooMany(ip: string, max = 6, windowMs = 60 * 60_000) {
   if (list.length >= max) { hits.set(ip, list); return true; }
   hits.set(ip, [...list, now]);
   return false;
+}
+
+// ── Aviso à equipe: pedido novo chega no WhatsApp dos atendentes, sem esperar o cliente escrever ─────
+async function notifyTeam(text: string) {
+  try {
+    if (wa.getSessionInfo().status !== "connected") return;
+    const sectors = await prisma.wppSector.findMany({ where: { isActive: true } });
+    const budget = sectors.filter((x) => /or[cç]amento|venda/i.test(x.name));
+    const people = (budget.length ? budget : sectors).flatMap((x) => parseAttendants(x.attendants)).filter((a) => a.available);
+    const phones = [...new Set(people.map((a) => a.phone))];
+    for (const p of phones) await wa.sendMessage(p, text).catch(() => false);
+  } catch (e) { console.error("[site] não consegui avisar a equipe:", e); }
 }
 
 // ── Vitrine ──────────────────────────────────────────────────────────────────
@@ -158,13 +172,21 @@ publicSite.post("/site/quote-request", ah(async (req, res) => {
   });
 
   const company = await prisma.companyProfile.findFirst({ select: { phone: true, name: true } });
+  const itemsText = lines.map((l) => `• ${l.quantity.toLocaleString("pt-BR")} × ${l.description}${l.priced ? ` — ${brl(l.total)}` : ""}`);
+  // mensagem que o cliente manda à loja: já leva o número do pedido, o nome e o WhatsApp (o bot reconhece e entende o assunto)
   const text = [
-    `Olá! Fiz o orçamento nº ${quote.number} pelo site da ${company?.name ?? "gráfica"}:`,
-    ...lines.map((l) => `• ${l.quantity.toLocaleString("pt-BR")} × ${l.description}${l.priced ? ` — ${brl(l.total)}` : ""}`),
-    total > 0 ? `Total estimado: ${brl(total)}` : "", note ? `Observações: ${note}` : "", `Meu nome: ${name}`,
+    `Olá! Sou ${name}.`, `Fiz o pedido nº ${quote.number} pelo site (orçamento).`, ...itemsText,
+    total > 0 ? `Total estimado: ${brl(total)}` : "", note ? `Observações: ${note}` : "", `Meu WhatsApp: ${phone.replace(/^55/, "")}`,
   ].filter(Boolean).join("\n");
   const shop = normalizePhone(company?.phone ?? "");
-  res.status(201).json({ ok: true, number: quote.number, total, unpriced: lines.filter((l) => !l.priced).length, whatsappUrl: shop ? `https://wa.me/${shop}?text=${encodeURIComponent(text)}` : null });
+  const base = `${req.get("x-forwarded-proto") || req.protocol}://${req.get("host")}`;
+  void notifyTeam(`🛒 *Novo pedido pelo site* nº ${quote.number}\n👤 ${name} · ${phone.replace(/^55/, "")}\n${itemsText.join("\n")}${total > 0 ? `\nTotal estimado: ${brl(total)}` : ""}${note ? `\nObs.: ${note}` : ""}\n\nAbrir no painel: ${base}/orcamentos/${quote.id}`);
+  res.status(201).json({
+    ok: true, number: quote.number, total, unpriced: lines.filter((l) => !l.priced).length,
+    customer: { name, phone: phone.replace(/^55/, "") },
+    items: lines.map((l) => ({ description: l.description, quantity: l.quantity, total: l.total, priced: l.priced })),
+    whatsappUrl: shop ? `https://wa.me/${shop}?text=${encodeURIComponent(text)}` : null,
+  });
 }));
 
 // ── Administração: fotos dos produtos ────────────────────────────────────────

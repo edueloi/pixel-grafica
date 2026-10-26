@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Minus, Plus, ShoppingCart, MessageCircle, CheckCircle2, Loader2, Send } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingCart, MessageCircle, CheckCircle2, Loader2, Send, User, Phone, Hash, BellRing } from 'lucide-react';
 import { SITE, brl, calcPrice, extrasTotal, num, sitePost, unitName, useCart, useSite, waLink, type SiteProduct } from '../siteApi';
 import { ProductImage, defaultQty } from '../components';
 
-interface Done { number: number; total: number; unpriced: number; whatsappUrl: string | null }
+interface Done { number: number; total: number; unpriced: number; whatsappUrl: string | null; customer: { name: string; phone: string }; items: { description: string; quantity: number; total: number; priced: boolean }[] }
 
 const maskPhone = (v: string) => {
   const d = v.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '').slice(0, 11);
@@ -51,13 +51,32 @@ const QuotePage: React.FC = () => {
 
   if (done) {
     return (
-      <div className="pxs-container py-16 sm:py-24 max-w-2xl text-center">
-        <CheckCircle2 size={64} className="mx-auto text-emerald-500" />
-        <h1 className="mt-5 text-3xl font-bold text-slate-900">Pedido de orçamento enviado!</h1>
-        <p className="mt-3 text-slate-600">Recebemos o seu orçamento <b>nº {done.number}</b>{done.total > 0 ? <> com total estimado de <b>{brl(done.total)}</b></> : ''}. {done.unpriced > 0 ? 'Alguns itens têm valor sob consulta e a gente confirma com você. ' : ''}Agora é só continuar pelo WhatsApp para enviar a arte e combinar prazo e entrega.</p>
+      <div className="pxs-container py-10 sm:py-16 max-w-3xl">
+        <div className="text-center">
+          <span className="mx-auto h-16 w-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><CheckCircle2 size={38} /></span>
+          <h1 className="mt-4 text-3xl font-bold text-slate-900">Pedido recebido!</h1>
+          <p className="mt-2 text-slate-600">Falta só um passo: abrir o WhatsApp com a mensagem pronta.</p>
+        </div>
+
+        {/* o que será enviado: número do pedido, nome e WhatsApp */}
+        <div className="mt-8 rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-xl shadow-slate-900/5">
+          <div className="pxs-aurora px-6 py-5 text-white flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-xs uppercase tracking-[.16em] text-blue-100">Número do pedido</p><p className="flex items-center gap-1 text-4xl font-bold tabular-nums"><Hash size={26} className="opacity-70" />{done.number}</p></div>
+            {done.total > 0 && <div className="text-right"><p className="text-xs uppercase tracking-[.16em] text-blue-100">Total estimado</p><p className="text-3xl font-bold tabular-nums">{brl(done.total)}</p></div>}
+          </div>
+          <dl className="grid sm:grid-cols-2 gap-4 p-6 border-b border-slate-100">
+            <div className="flex items-center gap-3"><span className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><User size={20} /></span><div><dt className="text-xs text-slate-500">Nome</dt><dd className="font-semibold text-slate-900">{done.customer.name}</dd></div></div>
+            <div className="flex items-center gap-3"><span className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><Phone size={20} /></span><div><dt className="text-xs text-slate-500">WhatsApp</dt><dd className="font-semibold text-slate-900">{maskPhone(done.customer.phone)}</dd></div></div>
+          </dl>
+          <ul className="p-6 space-y-2 text-sm">
+            {done.items.map((it, i) => <li key={i} className="flex items-start justify-between gap-4"><span className="text-slate-700">{num(it.quantity)} × {it.description}</span><span className="tabular-nums font-medium text-slate-900 whitespace-nowrap">{it.priced ? brl(it.total) : 'sob consulta'}</span></li>)}
+          </ul>
+          <p className="flex items-start gap-2 px-6 py-4 bg-slate-50 text-sm text-slate-600"><BellRing size={18} className="mt-0.5 shrink-0 text-amber-500" />Nossa equipe já foi avisada do seu pedido. No WhatsApp a conversa já vai com o número, o seu nome e os itens, então não precisa explicar de novo.{done.unpriced > 0 ? ' Itens “sob consulta” a gente confirma com você.' : ''}</p>
+        </div>
+
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          {done.whatsappUrl && <a href={done.whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 h-12 px-7 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-600"><MessageCircle size={18} />Continuar no WhatsApp</a>}
-          <Link to={`${SITE}/catalogo`} className="inline-flex items-center h-12 px-7 rounded-full border border-slate-300 font-semibold text-slate-800 hover:border-blue-500">Voltar ao catálogo</Link>
+          {done.whatsappUrl && <a href={done.whatsappUrl} target="_blank" rel="noreferrer" className="pxs-shimmer inline-flex items-center gap-2 h-14 px-9 rounded-full bg-emerald-500 text-white text-lg font-semibold hover:bg-emerald-600 transition-colors"><MessageCircle size={22} />Continuar no WhatsApp</a>}
+          <Link to={`${SITE}/catalogo`} className="inline-flex items-center h-14 px-7 rounded-full border border-slate-300 font-semibold text-slate-800 hover:border-blue-500">Voltar ao catálogo</Link>
         </div>
       </div>
     );
@@ -128,7 +147,8 @@ const QuotePage: React.FC = () => {
           </div>
 
           <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3" noValidate>
-            <h2 className="font-bold text-slate-900">Enviar meu pedido</h2>
+            <h2 className="font-bold text-slate-900">Seus dados para o pedido</h2>
+            <p className="text-xs text-slate-500 -mt-1">O pedido é registrado e você segue para o WhatsApp com a mensagem pronta.</p>
             <label className="block"><span className="text-sm text-slate-600">Seu nome</span><input type="text" autoComplete="name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 w-full h-12 px-4 rounded-xl border border-slate-300 outline-none focus:border-blue-500" required /></label>
             <label className="block"><span className="text-sm text-slate-600">WhatsApp (com DDD)</span><input type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: maskPhone(e.target.value) })} placeholder="(15) 99999-9999" className="mt-1 w-full h-12 px-4 rounded-xl border border-slate-300 outline-none focus:border-blue-500" required /></label>
             <label className="block"><span className="text-sm text-slate-600">E-mail (opcional)</span><input type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} className="mt-1 w-full h-12 px-4 rounded-xl border border-slate-300 outline-none focus:border-blue-500" /></label>
@@ -136,8 +156,7 @@ const QuotePage: React.FC = () => {
             {/* campo-isca: pessoas não veem nem preenchem; robôs sim */}
             <div className="absolute -left-[9999px]" aria-hidden="true"><label>Site<input type="text" tabIndex={-1} autoComplete="off" value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} /></label></div>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={sending} className="w-full h-12 rounded-full bg-blue-600 text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-60">{sending ? <><Loader2 size={18} className="animate-spin" />Enviando…</> : <><Send size={18} />Enviar pedido de orçamento</>}</button>
-            {wa && <a href={waLink(wa, summary)} target="_blank" rel="noreferrer" className="w-full h-12 rounded-full border border-emerald-500 text-emerald-700 font-semibold inline-flex items-center justify-center gap-2 hover:bg-emerald-50"><MessageCircle size={18} />Prefiro mandar só pelo WhatsApp</a>}
+            <button type="submit" disabled={sending} className="w-full h-12 rounded-full bg-blue-600 text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-60">{sending ? <><Loader2 size={18} className="animate-spin" />Enviando…</> : <><Send size={18} />Fazer o pedido</>}</button>
           </form>
         </aside>
       </div>

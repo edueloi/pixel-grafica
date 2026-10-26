@@ -59,7 +59,7 @@ const safeError = (e: unknown) =>
     .replace(/AIza[\w-]{20,}/g, "[chave protegida]").replace(/sk-[\w-]{16,}/g, "[chave protegida]")
     .replace(/([?&](?:key|api_key)=)[^&\s]+/gi, "$1[chave protegida]").replace(/Bearer\s+\S+/gi, "Bearer [chave protegida]").slice(0, 400);
 
-export interface AiConversation { id: string; clientPhone: string; clientJid?: string | null; clientName?: string | null; customerId?: string | null }
+export interface AiConversation { id: string; subject?: string | null; clientPhone: string; clientJid?: string | null; clientName?: string | null; customerId?: string | null }
 export interface AiResult { text: string | null; handoff?: { sector: string; reason: string } }
 
 // ── Ferramentas (definição neutra, convertida para cada provedor) ────────────
@@ -447,6 +447,7 @@ async function companyBlock(): Promise<{ name: string; text: string }> {
 async function customerBlock(conv: AiConversation): Promise<string> {
   const customer = conv.customerId ? await prisma.customer.findUnique({ where: { id: conv.customerId } }) : await findCustomerByPhone(conv.clientPhone);
   if (!customer) return "";
+  const siteQuotes = await prisma.quote.findMany({ where: { customerId: customer.id, source: "site", status: "rascunho", createdAt: { gte: new Date(Date.now() - 48 * 3600_000) } }, orderBy: { createdAt: "desc" }, take: 2, include: { items: { orderBy: { sortOrder: "asc" }, take: 8 } } });
   const [orders, quotes] = await Promise.all([
     prisma.order.findMany({ where: { customerId: customer.id }, orderBy: { createdAt: "desc" }, take: 5, include: { items: { orderBy: { sortOrder: "asc" }, take: 3 } } }),
     prisma.quote.findMany({ where: { customerId: customer.id, status: { in: ["rascunho", "enviado"] } }, orderBy: { createdAt: "desc" }, take: 3 }),
@@ -455,6 +456,7 @@ async function customerBlock(conv: AiConversation): Promise<string> {
     `- Cliente cadastrado: ${customer.name}${customer.company ? ` (${customer.company})` : ""}${customer.city ? `, ${customer.city}` : ""}.`,
     ...orders.map((o) => `- Pedido #${o.number}: ${ORDER_STATUS_LABEL[o.status] ?? o.status}; ${o.items.map((i) => i.description).join(" + ").slice(0, 120)}; total ${brl(Number(o.total))}${o.dueDate ? `; previsão ${o.dueDate.toLocaleDateString("pt-BR")}` : ""}.`),
     ...quotes.map((q) => `- Orçamento #${q.number} (${q.status}): ${brl(Number(q.total))}.`),
+    ...siteQuotes.map((q) => `- PEDIDO DO SITE nº ${q.number}, feito agora há pouco pelo próprio cliente: ${q.items.map((i) => `${Number(i.quantity).toLocaleString("pt-BR")} × ${i.description}`).join("; ")}; total estimado ${brl(Number(q.total))}. Ele veio do site para falar deste pedido.`),
     (() => {
       const missing = [!customer.document && "CPF/CNPJ", !customer.email && "e-mail", !customer.company && "empresa (se houver)", !(customer.street && customer.city) && "endereço"].filter(Boolean);
       return missing.length ? `- Faltam no cadastro: ${missing.join(", ")}.` : "- Cadastro completo (CPF/CNPJ, e-mail e endereço preenchidos).";
@@ -519,6 +521,8 @@ PREÇO (sempre pelas ferramentas e pelos dados oficiais; nunca de memória):
 ARTE (regra da casa): a criação da arte JÁ ESTÁ INCLUSA nos pedidos; a gráfica NÃO cobra pela arte. Se perguntarem se fazem a arte, responda que sim e que já está inclusa no valor. Se perguntarem se tem desconto por mandar a própria arte, explique com educação que não, justamente porque a arte já está incluída (não existe cobrança de arte para abater), e que ele pode mandar a arte pronta se preferir. Peça o necessário para criar (logo, textos, cores, medida). Não transfira só por causa de arte.
 
 DADOS DO CADASTRO (CPF/CNPJ, e-mail, empresa, endereço): se o cliente disser que precisa deles no orçamento ou na nota, mandar por conta própria, ou ao fechar um pedido, peça o que falta (veja "Faltam no cadastro" nos dados do cliente), de forma simples, tudo numa mensagem só. Quando ele mandar, chame atualizar_cadastro com confirmado=false, mostre os dados organizados e pergunte: "Está tudo certo? Posso gravar no seu cadastro ou você quer alterar algo?". SÓ depois do sim dele chame com confirmado=true. Se corrigir, chame de novo com o campo certo. Nunca grave sem esse sim e nunca invente dado. Depois de gravar, diga que o orçamento e a ordem de serviço saem com esses dados.
+
+PEDIDO VINDO DO SITE: se nos dados do cliente houver um "PEDIDO DO SITE" e ele escrever sobre esse pedido (ex.: "Fiz o pedido nº 12 pelo site"), cumprimente pelo nome, confirme em uma frase que recebeu o pedido nº X (diga os itens e o total que estão nos dados), avise que a equipe já foi avisada e pergunte se ele quer enviar a arte ou ajustar algo. Em seguida use transferir_para_atendente (setor Orçamentos, motivo "Pedido nº X feito pelo site") para uma pessoa finalizar. NÃO crie outro orçamento para o mesmo pedido e não invente itens ou valores além dos dados.
 
 PEDIDO DE ORÇAMENTO ("quero fazer um orçamento", "quanto fica…"): isso NÃO é motivo para transferir. Você mesma conduz a conversa, como uma atendente de balcão:
 - Comece de forma natural, pelo nome se souber, e pergunte o que ele quer imprimir (ou use o que ele já disse). Uma pergunta por vez; não despeje uma lista de perguntas nem um formulário.

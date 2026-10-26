@@ -30,6 +30,7 @@ const Quotes: React.FC = () => {
   const bulk = useBulk(pag.paginatedData.map((x) => x.id), filtered.map((x) => x.id));
   const byId = new Map((filtered).map((x) => [x.id, x]));
   const count = (s: QuoteStatus) => (data ?? []).filter((x) => x.status === s).length;
+  const fromSite = (data ?? []).filter((x) => x.source === 'site' && x.status === 'rascunho').length;
 
   const remove = async () => {
     if (!removing || busy) return;
@@ -41,7 +42,7 @@ const Quotes: React.FC = () => {
   return (
     <PageWrapper>
       <div className="space-y-4">
-        <SectionTitle title="Orçamentos" icon={FileText} description={`${data?.length ?? 0} orçamentos · ${count('rascunho')} rascunho(s) · ${count('enviado')} aguardando resposta`}
+        <SectionTitle title="Orçamentos" icon={FileText} description={`${data?.length ?? 0} orçamentos · ${count('rascunho')} rascunho(s) · ${count('enviado')} aguardando resposta${fromSite ? ` · ${fromSite} pedido(s) do site para atender` : ''}`}
           action={<Button size="sm" iconLeft={<Plus size={14} />} onClick={() => navigate('/orcamentos/novo')}>Novo orçamento</Button>} />
         <FilterLine>
           <FilterLineSection grow><FilterLineSearch value={search} onChange={setSearch} placeholder="Buscar por número ou cliente" aria-label="Buscar orçamentos" /></FilterLineSection>

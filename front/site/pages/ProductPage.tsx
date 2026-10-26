@@ -141,7 +141,7 @@ const ProductPage: React.FC = () => {
 
             <div className="mt-4 grid gap-2.5 2xl:grid-cols-2">
               <button type="button" onClick={add} disabled={!calc?.ok} className={`h-12 rounded-full font-semibold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${added ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>{added ? <><Check size={18} />Adicionado!</> : <><ShoppingCart size={18} />Adicionar ao orçamento</>}</button>
-              {wa && <a href={waLink(wa, message)} target="_blank" rel="noreferrer" className="h-12 rounded-full bg-emerald-500 text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-emerald-600"><MessageCircle size={18} />Pedir pelo WhatsApp</a>}
+              <button type="button" disabled={!calc?.ok} onClick={() => { cart.add(p.id, qty, note.trim() || undefined, chosen); navigate(`${SITE}/orcamento`); }} className="pxs-shimmer h-12 rounded-full bg-emerald-500 text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-emerald-600 disabled:opacity-50"><MessageCircle size={18} />Pedir agora</button>
             </div>
             {cart.items.length > 0 && <Link to={`${SITE}/orcamento`} className="mt-3 block text-center text-sm font-semibold text-blue-700 hover:underline">Ver meu orçamento ({cart.items.length} {cart.items.length === 1 ? 'item' : 'itens'})</Link>}
             <p className="mt-3 text-xs text-slate-500">Valores de tabela para impressão padrão; sujeitos a confirmação no orçamento.</p>

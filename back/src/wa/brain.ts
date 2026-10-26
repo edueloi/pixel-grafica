@@ -3,7 +3,7 @@ import { prisma } from "../db.js";
 import * as tr from "./transport.js";
 import { generateReply, isAiAvailable, transcribeAudio } from "./ai.js";
 import { saveAttachment } from "../lib/files.js";
-import { strip, cut, normalizePhone } from "../lib/text.js";
+import { strip, cut, normalizePhone, samePhone } from "../lib/text.js";
 import {
   record, findCustomerByPhone, findAttendantByPhone, handleAttendantMessage, handleAttendantMedia, offerConversation, queuePosition,
   clientStates, stateKey, targetOf, clientLabel, parseAttendants, onShift, scheduleLabel, closeIdleActive, realPhone, type ClientState,
@@ -23,6 +23,18 @@ function sectorForHuman(text: string): string {
 const pickOne = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const SESSION_IDLE_MS = 60 * 60 * 1000;
 const returnMs = (c?: { returnAfterMin?: number | null } | null) => (c?.returnAfterMin && c.returnAfterMin > 0 ? c.returnAfterMin : 60) * 60_000;
+
+// Cliente que veio do site: a mensagem traz "pedido nº 12 pelo site". Se o número existir e for do mesmo WhatsApp que fez o pedido,
+// a conversa já nasce ligada ao cliente e ao assunto (a IA recebe os itens e o total por customerBlock).
+const SITE_ORDER = /(?:pedido|or[cç]amento)\s*(?:n[ºo°.]*\s*)?#?\s*(\d{1,7})\b[^\n]*\bsite\b/i;
+async function linkSiteOrder<T extends { id: string; subject?: string | null }>(conv: T, text: string, clientPhone: string): Promise<T> {
+  const m = SITE_ORDER.exec(text);
+  if (!m) return conv;
+  const number = Number(m[1]);
+  const quote = await prisma.quote.findFirst({ where: { number, source: "site" }, include: { customer: true } });
+  if (!quote || !samePhone(quote.customer.phone, clientPhone)) return conv; // só vale para quem fez o pedido (não vaza dados por palpite de número)
+  return (await prisma.wppConversation.update({ where: { id: conv.id }, data: { customerId: quote.customerId, clientName: quote.customer.name, subject: `Pedido nº ${number} (pelo site)` } })) as unknown as T;
+}
 
 // Nome "de verdade": tem letras (não só número, emoji ou pontuação)
 const isRealName = (n?: string | null) => !!n && /\p{L}{2,}/u.test(n.trim()) && !/^\+?[\d\s()-]+$/.test(n.trim());
@@ -193,7 +205,7 @@ async function answerWithKnowledge(state: ClientState, conv: any, text: string):
 }
 
 async function answerWithAi(state: ClientState, conv: any, text: string): Promise<boolean> {
-  const r = await generateReply({ id: conv.id, clientPhone: conv.clientPhone, clientJid: conv.clientJid, clientName: conv.clientName ?? state.pushName, customerId: conv.customerId }, text);
+  const r = await generateReply({ id: conv.id, subject: conv.subject, clientPhone: conv.clientPhone, clientJid: conv.clientJid, clientName: conv.clientName ?? state.pushName, customerId: conv.customerId }, text);
   if (!r) return false;
   if (r.text) await botSayBubbles(state, r.text);
   if (r.handoff) await handoffToSector(state, conv, { name: r.handoff.sector }, r.handoff.reason);
@@ -260,6 +272,8 @@ export async function handleMessage(msg: any, _sock: any) {
   } else if (!conv.clientJid || (!conv.clientName && pushName)) {
     conv = await prisma.wppConversation.update({ where: { id: conv.id }, data: { clientJid: conv.clientJid ?? rawJid, ...(conv.clientName ? {} : { clientName: pushName }) } });
   }
+
+  if (!conv.subject && text) conv = await linkSiteOrder(conv, text, clientPhone);
 
   // Arquivo do cliente (arte, logo, PDF…): guarda e anexa à conversa
   let attachmentId: string | null = null;

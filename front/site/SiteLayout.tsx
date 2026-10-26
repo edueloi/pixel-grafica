@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, MessageCircle, Phone, Mail, MapPin, Clock, Instagram, Loader2 } from 'lucide-react';
 import { SITE, useSite, useCart, waLink, setScrollLock } from './siteApi';
+import SiteFooter from './SiteFooter';
 
 const nav = [
   { label: 'Início', to: SITE, end: true },
@@ -125,38 +126,7 @@ const SiteLayout: React.FC = () => {
             : <Outlet />}
       </main>
 
-      <footer className={`bg-slate-900 text-slate-300 ${wide ? '' : 'mt-16'}`}>
-        <div className="pxs-container py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-3">
-            <Brand light />
-            {c?.tagline && <p className="text-sm text-slate-400">{c.tagline}</p>}
-            {c?.instagram && <a href={instaUrl(c.instagram)!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm hover:text-white"><Instagram size={16} />{c.instagram}</a>}
-          </div>
-          <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Navegue</h3>
-            <ul className="space-y-2 text-sm">{nav.map((n) => <li key={n.label}><Link to={n.to} className="hover:text-white">{n.label}</Link></li>)}</ul>
-          </div>
-          <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Atendimento</h3>
-            <ul className="space-y-2.5 text-sm">
-              {c?.phone && <li><a href={telHref(c.phone)} className="flex items-start gap-2 hover:text-white"><Phone size={15} className="mt-0.5 shrink-0" />{c.phone}</a></li>}
-              {c?.email && <li><a href={`mailto:${c.email}`} className="flex items-start gap-2 hover:text-white break-all"><Mail size={15} className="mt-0.5 shrink-0" />{c.email}</a></li>}
-              {c?.hours && <li className="flex items-start gap-2"><Clock size={15} className="mt-0.5 shrink-0" /><span className="whitespace-pre-line">{c.hours.replace(/\s*·\s*\n/g, '\n')}</span></li>}
-              {c?.address && <li className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0" />{c.address}</li>}
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Como comprar</h3>
-            <ul className="space-y-2 text-sm text-slate-400">
-              {c?.payment && <li><b className="text-slate-200 font-medium">Pagamento:</b> {c.payment}</li>}
-              {c?.delivery && <li><b className="text-slate-200 font-medium">Entrega:</b> {c.delivery}</li>}
-              {c?.artService && <li><b className="text-slate-200 font-medium">Arte:</b> {c.artService}</li>}
-              {!c?.payment && !c?.delivery && !c?.artService && <li>Monte seu orçamento no site e finalize pelo WhatsApp.</li>}
-            </ul>
-          </div>
-        </div>
-        <div className="border-t border-slate-800"><div className="pxs-container py-5 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2"><span>© {new Date().getFullYear()} {c?.name ?? 'Gráfica'}. Todos os direitos reservados.</span><span>Valores sujeitos a confirmação no orçamento.</span></div></div>
-      </footer>
+      <SiteFooter wide={wide} />
 
       {wa && (
         <a href={waLink(wa, `Olá! Vim pelo site da ${c?.name ?? 'gráfica'}.`)} target="_blank" rel="noreferrer" aria-label="Falar no WhatsApp"
