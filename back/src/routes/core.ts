@@ -167,10 +167,11 @@ router.post("/products/ai-fill", requireRole("atendente"), ah(async (req, res) =
     "description: 2 a 4 frases claras para o cliente (o que é, material/formato quando informados) e, no fim, os valores exatamente como cadastrados (faixas de quantidade). " +
     "howItWorks: 2 a 4 frases sobre como enviar a arte e o que está incluso ou cobrado à parte; se os dados não dizem, escreva só o que é seguro (ex.: arte enviada pelo cliente em PDF; criação de arte é cobrada à parte) sem inventar. " +
     "Aproveite o que já está escrito, corrigindo e organizando. Português do Brasil, sem emojis, sem markdown.",
-    facts, 900);
+    facts, 3000);
   if (!text) throw new HttpError(503, "A IA está desligada ou indisponível agora. Confira em Bot e IA.");
   let out: any = null;
   try { const m = text.match(/\{[\s\S]*\}/); out = m ? JSON.parse(m[0]) : null; } catch { out = null; }
+  if (!out) console.error("[IA] produto: resposta sem JSON:", text.slice(0, 300));
   const description = str(out?.description, 5000), howItWorks = str(out?.howItWorks, 5000);
   if (!description && !howItWorks) throw new HttpError(502, "A IA não devolveu um texto utilizável. Tente de novo.");
   res.json({ description, howItWorks });
