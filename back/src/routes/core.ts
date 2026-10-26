@@ -147,7 +147,12 @@ router.put("/products/:id", requireRole("atendente"), ah(async (req, res) => { r
 router.delete("/products/:id", requireRole("atendente"), ah(async (req, res) => {
   const used = (await prisma.quoteItem.count({ where: { productId: req.params.id } })) + (await prisma.orderItem.count({ where: { productId: req.params.id } }));
   if (used) await prisma.product.update({ where: { id: req.params.id }, data: { active: false } });
-  else await prisma.product.delete({ where: { id: req.params.id } });
+  else {
+    // apaga as fotos do disco junto com o produto (as linhas saem em cascata)
+    const imgs = await prisma.productImage.findMany({ where: { productId: req.params.id } });
+    await prisma.product.delete({ where: { id: req.params.id } });
+    for (const i of imgs) for (const f of new Set([i.storedName, i.thumbName])) fs.rm(filePath(f), { force: true }, () => {});
+  }
   res.json({ ok: true, inactivated: used > 0 });
 }));
 
