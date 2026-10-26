@@ -65,16 +65,16 @@ const ProductPage: React.FC = () => {
 
   return (
     <ShopShell active={p.category} label={p.category}>
-      <nav aria-label="Você está em" className="flex items-center gap-1.5 text-sm text-slate-500 mb-5 flex-wrap">
+      <nav aria-label="Você está em" className="flex items-center gap-1.5 text-xs text-slate-500 mb-4 flex-wrap">
         <Link to={SITE} className="hover:text-blue-700">Início</Link><ChevronRight size={14} />
         <Link to={`${SITE}/catalogo`} className="hover:text-blue-700">Catálogo</Link><ChevronRight size={14} />
         <Link to={`${SITE}/catalogo?categoria=${encodeURIComponent(p.category)}`} className="hover:text-blue-700">{p.category}</Link>
       </nav>
 
       <div className="grid gap-8 xl:grid-cols-2 xl:gap-10 items-start">
-        <div className="xl:sticky xl:top-24"><Gallery p={p} /></div>
+        <div className="xl:sticky xl:top-24 rounded-2xl bg-white border border-slate-200 p-3 sm:p-4"><Gallery p={p} /></div>
 
-        <div>
+        <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">{p.category}</span>
             {price.old && <span className="inline-flex items-center gap-1 rounded-full bg-pink-600 text-white text-[11px] font-bold px-2.5 py-1"><Flame size={12} />Oferta</span>}
@@ -150,7 +150,7 @@ const ProductPage: React.FC = () => {
       </div>
 
       <div className="mt-12 grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-8 rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 h-fit empty:hidden">
           {p.description && <section><h2 className="text-xl font-bold text-slate-900 mb-3">Sobre o produto</h2><p className="text-slate-600 leading-relaxed whitespace-pre-line">{p.description}</p></section>}
           {p.howItWorks && <section><h2 className="text-xl font-bold text-slate-900 mb-3">Como funciona</h2><p className="text-slate-600 leading-relaxed whitespace-pre-line">{p.howItWorks}</p></section>}
         </div>

@@ -217,7 +217,7 @@ export const ProductCard: React.FC<{ p: SiteProduct; badge?: 'popular' }> = ({ p
 };
 
 export const ProductGrid: React.FC<{ items: SiteProduct[]; badge?: 'popular'; wide?: boolean }> = ({ items, badge, wide }) => (
-  <ul className={`grid grid-cols-2 gap-3 sm:gap-5 ${wide ? 'md:grid-cols-3 2xl:grid-cols-4' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
+  <ul className={`grid grid-cols-2 gap-3 sm:gap-4 ${wide ? 'md:grid-cols-3 xl:grid-cols-4 min-[1700px]:grid-cols-5' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
     {items.map((p, i) => <Reveal as="li" key={p.id} delay={Math.min(i, 7) * 0.05} y={18} className="min-w-0"><ProductCard p={p} badge={badge} /></Reveal>)}
   </ul>
 );
@@ -263,14 +263,47 @@ export const Gallery: React.FC<{ p: Pick<SiteProduct, 'name' | 'category' | 'ima
 
 export const unitLabelPlural = (u: SiteProduct['unit'], qty: number) => (qty === 1 ? unitName[u] : u === 'un' ? 'unidades' : u === 'milheiro' ? 'milheiros' : u === 'folha' ? 'folhas' : unitName[u]);
 
-// ── Catálogo em menu lateral: no computador fica fixo; no celular abre numa gaveta ──
+// ── Produto em linha (visão de lista do catálogo) ────────────────────────────
+export const ProductRow: React.FC<{ p: SiteProduct; badge?: 'popular' }> = ({ p, badge }) => {
+  const cart = useCart();
+  const [added, setAdded] = useState(false);
+  const price = priceFrom(p);
+  const inCart = cart.items.some((x) => x.productId === p.id);
+  const add = () => { cart.add(p.id, defaultQty(p)); setAdded(true); setTimeout(() => setAdded(false), 1600); };
+  return (
+    <article className="pxs-glow group flex items-center gap-3 sm:gap-4 rounded-2xl bg-white border border-slate-200 p-2.5 sm:p-3 hover:shadow-lg hover:shadow-slate-900/5 transition">
+      <Link to={`${SITE}/produto/${p.id}`} className="h-20 w-24 sm:h-24 sm:w-32 shrink-0 rounded-xl overflow-hidden bg-slate-100" aria-label={`Ver ${p.name}`}><ProductImage p={p} className="h-full w-full group-hover:scale-105 transition-transform duration-500" /></Link>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 truncate">{p.category}</p>
+          {price.old && <span className="inline-flex items-center gap-1 rounded-full bg-pink-600 text-white text-[10px] font-bold px-2 py-0.5"><Flame size={10} />Oferta</span>}
+          {badge === 'popular' && <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 text-slate-900 text-[10px] font-bold px-2 py-0.5"><Star size={10} />Mais pedido</span>}
+        </div>
+        <h3 className="mt-0.5 text-[15px] font-semibold text-slate-900 leading-snug line-clamp-2"><Link to={`${SITE}/produto/${p.id}`} className="hover:text-blue-700">{p.name}</Link></h3>
+        {p.leadTime && <p className="mt-0.5 text-xs text-slate-500 truncate">Prazo: {p.leadTime}</p>}
+      </div>
+      <div className="hidden sm:block text-right shrink-0 pr-1">
+        <p className="text-[11px] text-slate-500">{price.old ? 'de' : 'a partir de'}{price.old && <span className="ml-1 line-through">{brl(price.old)}</span>}</p>
+        <p className="text-lg font-bold text-slate-900 tabular-nums">{brl(price.amount)}</p>
+        <p className="text-[11px] text-slate-500">{price.caption}</p>
+      </div>
+      <div className="shrink-0 flex flex-col items-end gap-1.5 sm:gap-0">
+        <p className="sm:hidden text-sm font-bold text-slate-900 tabular-nums">{brl(price.amount)}</p>
+        <button type="button" onClick={add} aria-label={`Adicionar ${p.name} ao orçamento`} className={`inline-flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-4 rounded-full text-sm font-semibold transition-colors ${added || inCart ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-900 text-white hover:bg-blue-600'}`}>
+          {added || inCart ? <Check size={16} /> : <Plus size={16} />}<span className="hidden sm:inline">{added ? 'Adicionado' : inCart ? 'No orçamento' : 'Adicionar'}</span>
+        </button>
+      </div>
+    </article>
+  );
+};
+
+// ── Catálogo em menu lateral estilo painel: colado à esquerda no computador; no celular abre numa gaveta ──
 const SidebarContent: React.FC<{ active?: string; onNavigate?: () => void }> = ({ active, onNavigate }) => {
   const { home } = useSite();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const products = home!.products;
-  const wa = home!.company?.whatsapp;
   const cat = active ?? params.get('categoria') ?? '';
   const oferta = params.get('oferta') === '1', popular = params.get('ordem') === 'popular';
   const categories = useMemo(() => {
@@ -283,36 +316,34 @@ const SidebarContent: React.FC<{ active?: string; onNavigate?: () => void }> = (
 
   const item = (to: string, label: string, opts: { on: boolean; icon: React.ReactNode; count?: number; accent?: boolean }) => (
     <li key={label}><Link to={to} onClick={onNavigate} aria-current={opts.on ? 'page' : undefined}
-      className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition-colors ${opts.on ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20' : opts.accent ? 'text-amber-700 font-semibold hover:bg-amber-50' : 'text-slate-700 hover:bg-slate-100'}`}>
-      <span className={`shrink-0 ${opts.on ? 'text-white' : opts.accent ? 'text-amber-500' : 'text-slate-400'}`}>{opts.icon}</span>
+      className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${opts.on ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+      {opts.on && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-blue-600" aria-hidden="true" />}
+      <span className={`shrink-0 ${opts.on ? 'text-blue-600' : opts.accent ? 'text-amber-500' : 'text-slate-400 group-hover:text-slate-600'}`}>{opts.icon}</span>
       <span className="flex-1 min-w-0 truncate">{label}</span>
-      {opts.count !== undefined && <span className={`text-xs tabular-nums ${opts.on ? 'text-blue-100' : 'text-slate-400'}`}>{opts.count}</span>}
+      {opts.count !== undefined && <span className={`rounded-md px-1.5 py-0.5 text-[11px] tabular-nums ${opts.on ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{opts.count}</span>}
     </Link></li>
   );
+  const group = (label: string) => <p className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[.12em] text-slate-400">{label}</p>;
 
   return (
-    <div className="space-y-4">
+    <div>
       <form role="search" onSubmit={(e) => { e.preventDefault(); navigate(`${SITE}/catalogo?q=${encodeURIComponent(q.trim())}`); onNavigate?.(); }} className="relative">
         <label className="sr-only" htmlFor="side-search">Buscar produto</label>
-        <input id="side-search" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar produto…" className="w-full h-11 pl-10 pr-3 rounded-xl border border-slate-300 bg-white text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input id="side-search" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar produto…" className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
       </form>
       <nav aria-label="Catálogo de produtos">
+        {group('Catálogo')}
         <ul className="space-y-0.5">
           {item(`${SITE}/catalogo`, 'Todos os produtos', { on: isAll, icon: <LayoutGrid size={17} />, count: products.length })}
           {offers > 0 && item(`${SITE}/catalogo?oferta=1`, 'Ofertas', { on: oferta, icon: <Tag size={17} />, count: offers, accent: true })}
           {home!.popular.length > 1 && item(`${SITE}/catalogo?ordem=popular`, 'Mais pedidos', { on: popular, icon: <Trophy size={17} />, accent: true })}
         </ul>
-        <p className="px-3 pt-4 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Categorias</p>
+        {group('Categorias')}
         <ul className="space-y-0.5">
           {categories.map(([name, count]) => item(`${SITE}/catalogo?categoria=${encodeURIComponent(name)}`, name, { on: cat === name, icon: React.createElement(categoryIcon(name), { size: 17 }), count }))}
         </ul>
       </nav>
-      {wa && (
-        <a href={waLink(wa, 'Olá! Tenho uma dúvida sobre os produtos do site.')} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 text-emerald-800 hover:bg-emerald-100 transition-colors">
-          <MessageCircle size={22} className="shrink-0" /><span className="text-sm"><b className="block font-semibold">Ficou em dúvida?</b>Fale com a loja no WhatsApp</span>
-        </a>
-      )}
     </div>
   );
 };
@@ -331,7 +362,7 @@ export const ShopShell: React.FC<{ children: React.ReactNode; active?: string; l
     <>
       {/* celular e tablet: barra com o botão que abre as categorias */}
       <div className="lg:hidden sticky top-16 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
-        <div className="pxs-container flex items-center gap-3 h-12">
+        <div className="px-4 sm:px-6 flex items-center gap-3 h-12">
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} className="inline-flex items-center gap-2 h-9 px-4 rounded-full bg-slate-900 text-white text-sm font-semibold"><MenuIcon size={16} />Categorias</button>
           <span className="text-sm text-slate-600 truncate">{label ?? 'Todos os produtos'}</span>
         </div>
@@ -348,9 +379,14 @@ export const ShopShell: React.FC<{ children: React.ReactNode; active?: string; l
         )}
       </AnimatePresence>
 
-      <div className="pxs-container py-6 lg:py-10 grid gap-8 lg:grid-cols-[264px_minmax(0,1fr)] items-start">
-        <aside className="hidden lg:block sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto pr-1 no-scrollbar" aria-label="Menu do catálogo" data-lenis-prevent><SidebarContent active={active} /></aside>
-        <div className="min-w-0">{children}</div>
+      {/* computador: painel lateral colado à esquerda, altura total, e a área de trabalho ao lado */}
+      <div className="lg:grid lg:grid-cols-[264px_minmax(0,1fr)] min-h-[70vh]">
+        <aside className="hidden lg:block bg-white border-r border-slate-200" aria-label="Menu do catálogo">
+          <div className="sticky top-16 h-[calc(100dvh-4rem)] overflow-y-auto px-4 py-5 no-scrollbar" data-lenis-prevent><SidebarContent active={active} /></div>
+        </aside>
+        <div className="min-w-0 bg-slate-50">
+          <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 max-w-[1500px]">{children}</div>
+        </div>
       </div>
     </>
   );
