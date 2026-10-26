@@ -122,7 +122,7 @@ const Home: React.FC = () => {
                     <ProductImage p={cat.cover} className="absolute inset-0 h-full w-full group-hover:scale-105 transition-transform duration-500" />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/15 to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 p-3.5 text-white flex items-end justify-between gap-2">
-                      <div className="min-w-0"><p className="font-semibold leading-tight truncate">{cat.name}</p><p className="text-xs text-slate-200">{cat.count} {cat.count === 1 ? 'produto' : 'produtos'}</p></div>
+                      <div className="min-w-0"><p className="font-semibold leading-tight line-clamp-2">{cat.name}</p><p className="text-xs text-slate-200">{cat.count} {cat.count === 1 ? 'produto' : 'produtos'}</p></div>
                       <span className="h-9 w-9 shrink-0 rounded-full bg-white/20 backdrop-blur flex items-center justify-center group-hover:bg-amber-400 group-hover:text-slate-900 transition-colors"><Icon size={18} /></span>
                     </div>
                   </Link>

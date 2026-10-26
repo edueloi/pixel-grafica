@@ -79,7 +79,7 @@ const ProductPage: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">{p.category}</span>
             {price.old && <span className="inline-flex items-center gap-1 rounded-full bg-pink-600 text-white text-[11px] font-bold px-2.5 py-1"><Flame size={12} />Oferta</span>}
           </div>
-          <h1 className="text-2xl sm:text-4xl font-bold text-slate-900 leading-tight">{p.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">{p.name}</h1>
           {p.leadTime && <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-slate-600"><Clock size={15} />Prazo de produção: {p.leadTime}</p>}
 
           <div className="mt-4">
@@ -139,7 +139,7 @@ const ProductPage: React.FC = () => {
               ) : <p className="text-sm text-amber-700">{calc?.error}</p>}
             </div>
 
-            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2.5 2xl:grid-cols-2">
               <button type="button" onClick={add} disabled={!calc?.ok} className={`h-12 rounded-full font-semibold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${added ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>{added ? <><Check size={18} />Adicionado!</> : <><ShoppingCart size={18} />Adicionar ao orçamento</>}</button>
               {wa && <a href={waLink(wa, message)} target="_blank" rel="noreferrer" className="h-12 rounded-full bg-emerald-500 text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-emerald-600"><MessageCircle size={18} />Pedir pelo WhatsApp</a>}
             </div>

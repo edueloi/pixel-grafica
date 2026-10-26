@@ -91,12 +91,12 @@ export const slidesFrom = (banners: SiteBanner[]): Slide[] => banners.map((b) =>
 const Collage: React.FC<{ items: SiteProduct[]; y?: MotionValue<string> }> = ({ items, y }) => {
   const reduce = useReducedMotion();
   const pos = [
-    { cls: 'left-0 top-2 w-[58%]', r: '-5deg', delay: 0.1 },
-    { cls: 'right-0 top-16 w-[52%]', r: '4deg', delay: 0.25 },
-    { cls: 'left-[14%] bottom-0 w-[50%]', r: '-2deg', delay: 0.4 },
+    { cls: 'left-[10%] top-0 w-[50%]', r: '-4deg', delay: 0.1 },
+    { cls: 'right-0 top-[120px] w-[44%]', r: '5deg', delay: 0.25 },
+    { cls: 'left-0 bottom-0 w-[44%]', r: '-2deg', delay: 0.4 },
   ];
   return (
-    <motion.div style={y ? { y } : undefined} className="relative hidden md:block h-[380px] w-full max-w-[500px] justify-self-end" aria-hidden="true">
+    <motion.div style={y ? { y } : undefined} className="relative hidden md:block h-[420px] w-full max-w-[500px] justify-self-end" aria-hidden="true">
       <span className="pxs-float absolute -left-6 top-24 h-16 w-16 rounded-full bg-cyan-400/90 blur-[1px]" />
       <span className="pxs-float absolute right-10 -top-4 h-12 w-12 rounded-full bg-pink-500/90" style={{ animationDelay: '1.2s' }} />
       <span className="pxs-float absolute -right-2 bottom-24 h-20 w-20 rounded-full bg-amber-400/90" style={{ animationDelay: '2.1s' }} />
