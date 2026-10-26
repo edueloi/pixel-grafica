@@ -2,6 +2,7 @@
 import { prisma } from "../db.js";
 import * as tr from "./transport.js";
 import { generateReply, isAiAvailable, transcribeAudio } from "./ai.js";
+import { findAdminByPhone, adminReply } from "./secretary.js";
 import { saveAttachment } from "../lib/files.js";
 import { strip, cut, normalizePhone, samePhone } from "../lib/text.js";
 import {
@@ -236,6 +237,24 @@ export async function handleMessage(msg: any, _sock: any) {
   {
     const att = await findAttendantByPhone(clientPhone);
     if (att && (media ? await handleAttendantMedia(att, media, text) : await handleAttendantMessage(att, text))) return;
+  }
+
+  // Administrador cadastrado (com WhatsApp): fala com a IA como secretária, não como cliente
+  {
+    const admin = await findAdminByPhone(clientPhone);
+    if (admin) {
+      try {
+        let ask = text;
+        if (media?.kind === "audio") {
+          const heard = await transcribeAudio(media.buffer, media.mime);
+          if (!heard) { await tr.sendText(admin.phone, "Não consegui ouvir esse áudio. Pode mandar de novo ou escrever? 🙏"); return; }
+          ask = heard;
+        } else if (media) { await tr.sendText(admin.phone, "Por aqui eu entendo texto e áudio. Para arquivos, use o painel. 🙂"); return; }
+        const reply = await adminReply(admin, ask);
+        await tr.sendText(admin.phone, reply);
+      } catch (e) { console.error("[Secretária] falha:", e); }
+      return;
+    }
   }
 
   let conv = await prisma.wppConversation.findFirst({

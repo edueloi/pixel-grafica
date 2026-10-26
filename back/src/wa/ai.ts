@@ -37,11 +37,11 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
   producao: "Em produção", acabamento: "Em acabamento", pronto: "Pronto para retirada/entrega", entregue: "Entregue", cancelado: "Cancelado",
 };
 
-interface Settings { enabled: boolean; provider: Provider; apiKey: string | null; model: string; customPrompt: string }
+export interface Settings { enabled: boolean; provider: Provider; apiKey: string | null; model: string; customPrompt: string }
 let cached: { at: number; value: Settings } | null = null;
 export const resetAiConfigCache = () => { cached = null; };
 
-async function loadSettings(force = false): Promise<Settings> {
+export async function loadSettings(force = false): Promise<Settings> {
   if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.value;
   const c = await prisma.wppBotConfig.findFirst();
   const provider: Provider = c?.aiProvider === "openai" ? "openai" : "gemini";
@@ -54,7 +54,7 @@ async function loadSettings(force = false): Promise<Settings> {
   return value;
 }
 
-const safeError = (e: unknown) =>
+export const safeError = (e: unknown) =>
   String(e instanceof Error ? e.message : e || "Falha ao conectar com a IA.")
     .replace(/AIza[\w-]{20,}/g, "[chave protegida]").replace(/sk-[\w-]{16,}/g, "[chave protegida]")
     .replace(/([?&](?:key|api_key)=)[^&\s]+/gi, "$1[chave protegida]").replace(/Bearer\s+\S+/gi, "Bearer [chave protegida]").slice(0, 400);
@@ -63,7 +63,7 @@ export interface AiConversation { id: string; subject?: string | null; clientPho
 export interface AiResult { text: string | null; handoff?: { sector: string; reason: string } }
 
 // ── Ferramentas (definição neutra, convertida para cada provedor) ────────────
-interface ToolDef { name: string; description: string; parameters: Record<string, any> }
+export interface ToolDef { name: string; description: string; parameters: Record<string, any> }
 
 const toolDefs: ToolDef[] = [
   {
@@ -141,7 +141,7 @@ const toolDefs: ToolDef[] = [
 ];
 
 // O Gemini usa os tipos em maiúsculas (OBJECT, STRING…)
-const toGeminiSchema = (s: any): any =>
+export const toGeminiSchema = (s: any): any =>
   Array.isArray(s) ? s.map(toGeminiSchema)
     : s && typeof s === "object" ? Object.fromEntries(Object.entries(s).map(([k, v]) => [k, k === "type" && typeof v === "string" ? v.toUpperCase() : toGeminiSchema(v)]))
       : s;
@@ -150,10 +150,10 @@ const openaiTools = toolDefs.map((t) => ({ type: "function", function: { name: t
 
 const unitName: Record<string, string> = { un: "unidade", milheiro: "milheiro (1000 un)", m2: "m²", folha: "folha" };
 
-type Found = { product: Product } | { error: string };
+export type Found = { product: Product } | { error: string };
 
 // Nome exato → esse produto. Termo que casa com vários → devolve os candidatos para a IA perguntar ao cliente (nunca chuta preço).
-async function findProduct(name: string): Promise<Found> {
+export async function findProduct(name: string): Promise<Found> {
   const s = strip(name);
   const all = await prisma.product.findMany({ where: { active: true } });
   const exact = all.find((p) => strip(p.name) === s);
@@ -434,7 +434,7 @@ async function buildHistory(convId: string, current: string): Promise<Turn[]> {
   return turns;
 }
 
-const cleanReply = (v: string | null | undefined) => {
+export const cleanReply = (v: string | null | undefined) => {
   const t = String(v || "").replace(/\*\*([^*]+)\*\*/g, "*$1*").replace(/^#{1,6}\s+/gm, "").trim().slice(0, 1500);
   return t.length >= 2 ? t : null;
 };
@@ -577,7 +577,7 @@ async function askGemini(s: Settings, conv: AiConversation, text: string, out: A
   } finally { clearTimeout(timeout); }
 }
 
-async function openaiRequest(apiKey: string, body: unknown, signal?: AbortSignal): Promise<any> {
+export async function openaiRequest(apiKey: string, body: unknown, signal?: AbortSignal): Promise<any> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body), signal,
   });
