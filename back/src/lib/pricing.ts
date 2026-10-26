@@ -21,6 +21,16 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const r6 = (n: number) => Math.round(n * 1e6) / 1e6; // unitário: sem perder precisão em tabela fechada
 const fmt = (n: number) => n.toLocaleString("pt-BR");
 
+export interface ProductOption { name: string; price: number; kind: "acabamento" | "servico" }
+/** Opcionais do produto (acabamentos e serviços com preço fechado por pedido). */
+export function parseOptions(raw: unknown): ProductOption[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((o: any) => ({ name: String(o?.name ?? "").trim().slice(0, 80), price: Math.round(Number(o?.price) * 100) / 100, kind: o?.kind === "servico" ? "servico" as const : "acabamento" as const }))
+    .filter((o) => o.name && Number.isFinite(o.price) && o.price >= 0)
+    .slice(0, 12);
+}
+
 interface POffer extends P { offerPrice?: unknown }
 
 /** Igual a quotePrice, mas aplica a oferta do produto (preço unitário promocional, só em preço por unidade): vale o menor preço. */

@@ -25,6 +25,7 @@ const ProductFormPage: React.FC = () => {
 
   const [f, setF] = useState({ name: '', category: 'Geral', unit: 'un', pricingMode: 'unit' as 'unit' | 'package', price: '', minQty: '1', leadTime: '', description: '', howItWorks: '', active: true, showOnSite: true, featured: false, offerPrice: '' });
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [opts, setOpts] = useState<{ name: string; price: string; kind: 'acabamento' | 'servico' }[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -34,6 +35,7 @@ const ProductFormPage: React.FC = () => {
     if (!p) return;
     setF({ name: p.name, category: p.category, unit: p.unit, pricingMode: p.pricingMode ?? 'unit', price: String(p.price), minQty: String(p.minQty), leadTime: p.leadTime ?? '', description: p.description ?? '', howItWorks: p.howItWorks ?? '', showOnSite: p.showOnSite !== false, featured: !!p.featured, offerPrice: p.offerPrice ? String(p.offerPrice) : '', active: p.active });
     setTiers((p.priceTiers ?? []).map((t) => ({ minQty: String(t.minQty), price: String(t.price) })));
+    setOpts((p.options ?? []).map((o) => ({ name: o.name, price: String(o.price), kind: o.kind })));
   }, [data]);
 
   if (loading && !data) return <PageWrapper><div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500"><Loader2 size={18} className="animate-spin" />Carregando…</div></PageWrapper>;
@@ -60,7 +62,8 @@ const ProductFormPage: React.FC = () => {
     if (!pack && offer > 0 && offer >= price) { setFormError('O preço de oferta precisa ser menor que o preço normal.'); return; }
     setSaving(true); setFormError('');
     try {
-      const body = { ...f, price, minQty, priceTiers: parsed, offerPrice: pack ? 0 : offer };
+      const options = opts.filter((o) => o.name.trim()).map((o) => ({ name: o.name.trim(), price: Number(String(o.price).replace(',', '.')) || 0, kind: o.kind }));
+      const body = { ...f, price, minQty, priceTiers: parsed, offerPrice: pack ? 0 : offer, options };
       const saved = isEditing ? await api.put<Product>(`/products/${id}`, body) : await api.post<Product>('/products', body);
       toast.success(isEditing ? 'Produto atualizado.' : 'Produto cadastrado.');
       navigate(isEditing ? `/produtos/${saved.id}` : `/produtos/${saved.id}/editar`); // produto novo: já abre a edição para adicionar as fotos
@@ -111,6 +114,21 @@ const ProductFormPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </PanelCard>
+
+        <PanelCard title="Opcionais com preço" description="Acabamentos e serviços que o cliente marca no site (ex.: corte especial R$ 30,00, checagem profissional R$ 16,99). Cada um entra como uma linha no orçamento.">
+          <div className="space-y-2">
+            {opts.length === 0 && <p className="text-[11px] text-slate-400">Nenhum opcional. Este produto é vendido só com o preço acima.</p>}
+            {opts.map((o, i) => (
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_9rem_9rem_auto] gap-2 items-end">
+                <Input label="Nome" value={o.name} onChange={(e) => setOpts((x) => x.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))} placeholder="Ex.: Corte especial (+3 dias)" />
+                <Input label="Valor (R$)" inputMode="decimal" value={o.price} onChange={(e) => setOpts((x) => x.map((r, j) => (j === i ? { ...r, price: e.target.value } : r)))} />
+                <Select label="Tipo" value={o.kind} onChange={(e) => setOpts((x) => x.map((r, j) => (j === i ? { ...r, kind: e.target.value as 'acabamento' | 'servico' } : r)))} options={[{ value: 'acabamento', label: 'Acabamento' }, { value: 'servico', label: 'Serviço' }]} />
+                <IconButton variant="ghost" size="md" aria-label="Remover opcional" onClick={() => setOpts((x) => x.filter((_, j) => j !== i))}><Trash2 /></IconButton>
+              </div>
+            ))}
+            <Button variant="outline" size="xs" iconLeft={<Plus size={12} />} onClick={() => setOpts((x) => [...x, { name: '', price: '', kind: 'acabamento' }])}>Opcional</Button>
           </div>
         </PanelCard>
 

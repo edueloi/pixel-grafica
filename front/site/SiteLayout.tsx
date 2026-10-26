@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, MessageCircle, Phone, Mail, MapPin, Clock, Instagram, Loader2 } from 'lucide-react';
-import { SITE, useSite, useCart, waLink } from './siteApi';
+import { SITE, useSite, useCart, waLink, setScrollLock } from './siteApi';
 
 const nav = [
   { label: 'Início', to: SITE, end: true },
@@ -12,6 +12,8 @@ const nav = [
   { label: 'Contato', to: `${SITE}/contato` },
 ];
 
+/** Texto de várias linhas (horário) em uma linha só, para a faixa do topo. */
+const oneLine = (v?: string | null) => (v ? v.split(/\n+/).map((s) => s.replace(/[·]\s*$/, '').trim()).filter(Boolean).join(' · ') : '');
 const instaUrl = (v?: string | null) => (v ? (v.startsWith('http') ? v : `https://instagram.com/${v.replace('@', '')}`) : null);
 const telHref = (v?: string | null) => (v ? `tel:+${v.replace(/\D/g, '').replace(/^(?!55)/, '55')}` : undefined);
 
@@ -25,9 +27,7 @@ const Brand: React.FC<{ light?: boolean }> = ({ light }) => {
         ? <img src={`/api/brand/logo?v=${c.logoVersion}`} alt={c.name} className="h-10 sm:h-11 max-w-[180px] object-contain object-left" />
         : (
           <>
-            <span className="grid grid-cols-2 gap-[3px] h-8 w-8 shrink-0" aria-hidden="true">
-              <i className="rounded-[3px] bg-cyan-400" /><i className="rounded-[3px] bg-pink-500" /><i className="rounded-[3px] bg-amber-400" /><i className="rounded-[3px] bg-slate-900" />
-            </span>
+            <img src="/logo-pixel.jpg" alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
             <span className={`text-lg font-bold tracking-tight truncate ${light ? 'text-white' : 'text-slate-900'}`}>{c?.name ?? 'Gráfica'}</span>
           </>
         )}
@@ -54,9 +54,9 @@ const SiteLayout: React.FC = () => {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.body.style.overflow = 'hidden';
+    setScrollLock(true);
     window.addEventListener('keydown', onKey);
-    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', onKey); };
+    return () => { setScrollLock(false); window.removeEventListener('keydown', onKey); };
   }, [open]);
 
   return (
@@ -66,11 +66,11 @@ const SiteLayout: React.FC = () => {
       {/* faixa de contato */}
       <div className="hidden md:block bg-slate-900 text-slate-200 text-xs">
         <div className="pxs-container flex items-center justify-between gap-4 py-2">
-          <div className="flex items-center gap-5">
-            {c?.hours && <span className="flex items-center gap-1.5"><Clock size={13} />{c.hours}</span>}
-            {c?.address && <span className="flex items-center gap-1.5"><MapPin size={13} />{c.address}</span>}
+          <div className="flex min-w-0 items-center gap-5">
+            {c?.hours && <span className="flex min-w-0 items-center gap-1.5" title={oneLine(c.hours)}><Clock size={13} className="shrink-0" /><span className="truncate max-w-[34rem]">{oneLine(c.hours)}</span></span>}
+            {c?.address && <span className="hidden xl:flex min-w-0 items-center gap-1.5" title={c.address}><MapPin size={13} className="shrink-0" /><span className="truncate max-w-[24rem]">{c.address}</span></span>}
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex shrink-0 items-center gap-5 whitespace-nowrap">
             {c?.phone && <a href={telHref(c.phone)} className="flex items-center gap-1.5 hover:text-white"><Phone size={13} />{c.phone}</a>}
             {c?.instagram && <a href={instaUrl(c.instagram)!} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-white"><Instagram size={13} />{c.instagram}</a>}
           </div>
@@ -103,7 +103,7 @@ const SiteLayout: React.FC = () => {
           <div className="absolute inset-0 bg-slate-900/60" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-0 h-full w-[84%] max-w-sm bg-white shadow-2xl flex flex-col">
             <div className="flex items-center justify-between px-4 h-16 border-b border-slate-100"><Brand /><button type="button" className="h-10 w-10 rounded-full border border-slate-200 flex items-center justify-center" aria-label="Fechar menu" onClick={() => setOpen(false)}><X size={20} /></button></div>
-            <nav className="flex-1 overflow-y-auto p-3" aria-label="Menu principal">
+            <nav className="flex-1 overflow-y-auto p-3" aria-label="Menu principal" data-lenis-prevent>
               {nav.map((n) => <Link key={n.label} to={n.to} className="block px-4 py-3 rounded-xl text-base font-medium text-slate-800 hover:bg-slate-100">{n.label}</Link>)}
             </nav>
             <div className="p-4 border-t border-slate-100 space-y-2">
@@ -138,7 +138,7 @@ const SiteLayout: React.FC = () => {
             <ul className="space-y-2.5 text-sm">
               {c?.phone && <li><a href={telHref(c.phone)} className="flex items-start gap-2 hover:text-white"><Phone size={15} className="mt-0.5 shrink-0" />{c.phone}</a></li>}
               {c?.email && <li><a href={`mailto:${c.email}`} className="flex items-start gap-2 hover:text-white break-all"><Mail size={15} className="mt-0.5 shrink-0" />{c.email}</a></li>}
-              {c?.hours && <li className="flex items-start gap-2"><Clock size={15} className="mt-0.5 shrink-0" />{c.hours}</li>}
+              {c?.hours && <li className="flex items-start gap-2"><Clock size={15} className="mt-0.5 shrink-0" /><span className="whitespace-pre-line">{c.hours.replace(/\s*·\s*\n/g, '\n')}</span></li>}
               {c?.address && <li className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0" />{c.address}</li>}
             </ul>
           </div>

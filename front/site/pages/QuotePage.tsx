@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Minus, Plus, ShoppingCart, MessageCircle, CheckCircle2, Loader2, Send } from 'lucide-react';
-import { SITE, brl, calcPrice, num, sitePost, unitName, useCart, useSite, waLink, type SiteProduct } from '../siteApi';
+import { SITE, brl, calcPrice, extrasTotal, num, sitePost, unitName, useCart, useSite, waLink, type SiteProduct } from '../siteApi';
 import { ProductImage, defaultQty } from '../components';
 
 interface Done { number: number; total: number; unpriced: number; whatsappUrl: string | null }
@@ -26,13 +26,13 @@ const QuotePage: React.FC = () => {
   const [error, setError] = useState('');
   const [done, setDone] = useState<Done | null>(null);
 
-  const lines = rows.map(({ item, p }) => ({ item, p, calc: calcPrice(p, item.quantity) }));
-  const total = lines.reduce((s, l) => s + (l.calc.ok ? l.calc.total : 0), 0);
+  const lines = rows.map(({ item, p }) => ({ item, p, calc: calcPrice(p, item.quantity), extras: (p.options ?? []).filter((o) => item.extras?.includes(o.name)) }));
+  const total = lines.reduce((s, l) => s + (l.calc.ok ? l.calc.total : 0) + extrasTotal(l.p, l.item.extras), 0);
   const unpriced = lines.filter((l) => !l.calc.ok).length;
 
   const summary = [
     `Olá! Gostaria de um orçamento:`,
-    ...lines.map((l) => `• ${num(l.item.quantity)} × ${l.p.name}${l.item.note ? ` (${l.item.note})` : ''}${l.calc.ok ? ` — ${brl(l.calc.total)}` : ''}`),
+    ...lines.map((l) => `• ${num(l.item.quantity)} × ${l.p.name}${l.item.note ? ` (${l.item.note})` : ''}${l.extras.length ? ` + ${l.extras.map((o) => o.name).join(', ')}` : ''}${l.calc.ok ? ` — ${brl(l.calc.total + extrasTotal(l.p, l.item.extras))}` : ''}`),
     total > 0 ? `Total estimado: ${brl(total)}` : '',
   ].filter(Boolean).join('\n');
 
@@ -81,7 +81,7 @@ const QuotePage: React.FC = () => {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-5 items-start">
         <ul className="lg:col-span-3 space-y-3">
-          {lines.map(({ item, p, calc }) => (
+          {lines.map(({ item, p, calc, extras }) => (
             <li key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex gap-4">
               <Link to={`${SITE}/produto/${p.id}`} className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-xl overflow-hidden bg-slate-100"><ProductImage p={p} className="h-full w-full" /></Link>
               <div className="min-w-0 flex-1">
@@ -104,6 +104,16 @@ const QuotePage: React.FC = () => {
                     )}
                   <p className="ml-auto text-right">{calc.ok ? <><span className="block text-lg font-bold text-slate-900 tabular-nums">{brl(calc.total)}</span><span className="text-[11px] text-slate-500">{brl(calc.unit)} cada{calc.offer ? ' · oferta' : ''}</span></> : <span className="text-xs text-amber-700 max-w-[200px] block">{calc.error}</span>}</p>
                 </div>
+                {extras.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-2" aria-label={`Opcionais de ${p.name}`}>
+                    {extras.map((o) => (
+                      <li key={o.name} className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs pl-3 pr-1.5 py-1">
+                        {o.name} <b className="tabular-nums">+ {brl(o.price)}</b>
+                        <button type="button" aria-label={`Remover ${o.name}`} onClick={() => cart.update(p.id, { extras: (item.extras ?? []).filter((x) => x !== o.name) })} className="h-5 w-5 rounded-full hover:bg-teal-100 flex items-center justify-center">×</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <input type="text" aria-label={`Detalhes de ${p.name}`} value={item.note ?? ''} onChange={(e) => cart.update(p.id, { note: e.target.value.slice(0, 150) })} placeholder="Detalhes: formato, papel, acabamento…" className="mt-3 w-full h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-500" />
               </div>
             </li>

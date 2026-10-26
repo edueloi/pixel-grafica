@@ -8,7 +8,7 @@ import { ah, HttpError, str, num } from "./util.js";
 import { requireRole } from "../auth.js";
 import { filePath } from "../lib/files.js";
 import { saveSiteImage } from "../lib/images.js";
-import { quoteWithOffer, parseTiers } from "../lib/pricing.js";
+import { quoteWithOffer, parseTiers, parseOptions } from "../lib/pricing.js";
 import { digits, normalizePhone, samePhone } from "../lib/text.js";
 
 export const publicSite = Router();
@@ -39,7 +39,7 @@ function summary(p: any) {
   const offer = Number(p.offerPrice) > 0 && p.pricingMode !== "package" && Number(p.offerPrice) < Number(p.price) ? Number(p.offerPrice) : null;
   return {
     id: p.id, name: p.name, category: p.category, unit: p.unit, pricingMode: p.pricingMode, minQty: p.minQty, leadTime: p.leadTime,
-    price: Number(p.price), offerPrice: offer, featured: !!p.featured, priceTiers: parseTiers(p.priceTiers),
+    price: Number(p.price), offerPrice: offer, featured: !!p.featured, priceTiers: parseTiers(p.priceTiers), options: parseOptions(p.options),
     description: p.description ? String(p.description).replace(/\s+/g, " ").slice(0, 200) : null,
     images: p.images.map((i: any) => i.id),
   };
@@ -134,6 +134,11 @@ publicSite.post("/site/quote-request", ah(async (req, res) => {
       productId: p.id, quantity: qty, priced: r.ok, unitPrice: r.ok ? r.unitPrice : 0, total: r.ok ? r.total : 0,
       description: `${p.name}${note ? ` — ${note}` : ""}${r.ok ? "" : " (valor sob consulta)"}`,
     });
+    // acabamentos e serviços opcionais escolhidos: cada um vira uma linha própria, com o preço cadastrado no produto
+    const chosen: string[] = Array.isArray(it?.extras) ? it.extras.map((x: unknown) => String(x)).slice(0, 12) : [];
+    for (const opt of parseOptions(p.options).filter((o) => chosen.includes(o.name))) {
+      lines.push({ productId: p.id, quantity: 1, priced: true, unitPrice: opt.price, total: opt.price, description: `${opt.kind === "servico" ? "Serviço" : "Acabamento"}: ${opt.name} (${p.name})` });
+    }
   }
   if (!lines.length) throw new HttpError(400, "Os produtos escolhidos não estão mais disponíveis.");
 

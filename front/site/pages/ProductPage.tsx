@@ -1,27 +1,37 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ChevronRight, Minus, Plus, ShoppingCart, MessageCircle, Check, Clock, Loader2, PackageX, Flame } from 'lucide-react';
-import { SITE, brl, calcPrice, num, priceFrom, siteGet, unitName, useCart, useSite, waLink, type SiteProductFull } from '../siteApi';
-import { Gallery, ProductGrid, SectionHead, defaultQty, unitLabelPlural } from '../components';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ChevronRight, Minus, Plus, ShoppingCart, MessageCircle, Check, Clock, Loader2, PackageX, Flame, Settings2 } from 'lucide-react';
+import { SITE, brl, calcPrice, extrasTotal, num, priceFrom, siteGet, unitName, useCart, useSite, waLink, type SiteProductFull } from '../siteApi';
+import { Gallery, ProductGrid, SectionHead, ShopShell, defaultQty, unitLabelPlural } from '../components';
+
+const selectCls = 'mt-1 w-full h-12 px-3.5 rounded-xl border border-slate-300 bg-white outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
 
 const ProductPage: React.FC = () => {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const { home } = useSite();
   const cart = useCart();
   const [p, setP] = useState<SiteProductFull | null>(null);
   const [error, setError] = useState('');
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
+  const [chosen, setChosen] = useState<string[]>([]);
   const [added, setAdded] = useState(false);
   const wa = home!.company?.whatsapp;
 
   useEffect(() => {
     setP(null); setError(''); setAdded(false);
-    siteGet<SiteProductFull>(`/products/${id}`).then((r) => { setP(r); setQty(defaultQty(r)); setNote(cart.items.find((i) => i.productId === r.id)?.note ?? ''); const inCart = cart.items.find((i) => i.productId === r.id); if (inCart) setQty(inCart.quantity); }).catch((e) => setError(e.message));
+    siteGet<SiteProductFull>(`/products/${id}`).then((r) => {
+      setP(r);
+      const inCart = cart.items.find((i) => i.productId === r.id);
+      setQty(inCart?.quantity ?? defaultQty(r)); setNote(inCart?.note ?? ''); setChosen(inCart?.extras ?? []);
+    }).catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const tiers = useMemo(() => (p ? [...p.priceTiers].sort((a, b) => a.minQty - b.minQty) : []), [p]);
+  const categories = useMemo(() => [...new Set(home!.products.map((x) => x.category))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [home]);
+  const siblings = useMemo(() => (p ? home!.products.filter((x) => x.category === p.category) : []), [home, p]);
   const calc = p ? calcPrice(p, qty) : null;
 
   if (error) return <div className="pxs-container py-24 text-center"><PackageX size={44} className="mx-auto text-slate-400 mb-3" /><p className="text-lg font-semibold text-slate-800">{error}</p><Link to={`${SITE}/catalogo`} className="inline-flex mt-5 h-11 px-6 items-center rounded-full bg-blue-600 text-white font-semibold">Ver o catálogo</Link></div>;
@@ -30,62 +40,105 @@ const ProductPage: React.FC = () => {
   const price = priceFrom(p);
   const pack = p.pricingMode === 'package';
   const step = pack ? 0 : p.unit === 'milheiro' ? 1 : p.minQty >= 100 ? 50 : 1;
-  const message = `Olá! Quero um orçamento de ${num(qty)} ${unitLabelPlural(p.unit, qty)} de ${p.name}${note ? ` (${note})` : ''}.`;
+  const extras = extrasTotal(p, chosen);
+  const total = (calc?.ok ? calc.total : 0) + extras;
+  const finishing = p.options.filter((o) => o.kind === 'acabamento');
+  const services = p.options.filter((o) => o.kind === 'servico');
+  const toggle = (name: string) => setChosen((c) => (c.includes(name) ? c.filter((x) => x !== name) : [...c, name]));
+  const message = [`Olá! Quero um orçamento de ${num(qty)} ${unitLabelPlural(p.unit, qty)} de ${p.name}${note ? ` (${note})` : ''}.`, chosen.length ? `Opcionais: ${chosen.join(', ')}` : '', calc?.ok ? `Total estimado: ${brl(total)}` : ''].filter(Boolean).join('\n');
+  const add = () => { cart.add(p.id, qty, note.trim() || undefined, chosen); setAdded(true); setTimeout(() => setAdded(false), 2000); };
 
-  const add = () => { cart.add(p.id, qty, note.trim() || undefined); setAdded(true); setTimeout(() => setAdded(false), 2000); };
+  const renderOpt = (title: string, items: typeof p.options, card?: boolean) => (
+    <fieldset key={title} className={`mt-5 ${card ? 'rounded-xl border border-slate-200 bg-white p-4' : ''}`}>
+      <legend className="text-sm font-semibold text-slate-900 mb-2">{title}</legend>
+      <ul className="space-y-2">
+        {items.map((o) => (
+          <li key={o.name}><label className="flex items-start gap-3 cursor-pointer rounded-lg px-1 py-1 hover:bg-slate-50">
+            <input type="checkbox" checked={chosen.includes(o.name)} onChange={() => toggle(o.name)} className="mt-0.5 h-5 w-5 rounded border-slate-300 accent-blue-600 shrink-0" />
+            <span className="flex-1 text-sm text-slate-700">{o.name}</span>
+            <span className="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">+ {brl(o.price)}</span>
+          </label></li>
+        ))}
+      </ul>
+    </fieldset>
+  );
 
   return (
-    <div className="pxs-container py-8 sm:py-12">
-      <nav aria-label="Você está em" className="flex items-center gap-1.5 text-sm text-slate-500 mb-6 flex-wrap">
+    <ShopShell active={p.category} label={p.category}>
+      <nav aria-label="Você está em" className="flex items-center gap-1.5 text-sm text-slate-500 mb-5 flex-wrap">
         <Link to={SITE} className="hover:text-blue-700">Início</Link><ChevronRight size={14} />
         <Link to={`${SITE}/catalogo`} className="hover:text-blue-700">Catálogo</Link><ChevronRight size={14} />
         <Link to={`${SITE}/catalogo?categoria=${encodeURIComponent(p.category)}`} className="hover:text-blue-700">{p.category}</Link>
       </nav>
 
-      <div className="grid gap-8 lg:grid-cols-2 lg:gap-12 items-start">
-        <Gallery p={p} />
+      <div className="grid gap-8 xl:grid-cols-2 xl:gap-10 items-start">
+        <div className="xl:sticky xl:top-24"><Gallery p={p} /></div>
 
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">{p.category}</span>
             {price.old && <span className="inline-flex items-center gap-1 rounded-full bg-pink-600 text-white text-[11px] font-bold px-2.5 py-1"><Flame size={12} />Oferta</span>}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 leading-tight">{p.name}</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold text-slate-900 leading-tight">{p.name}</h1>
           {p.leadTime && <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-slate-600"><Clock size={15} />Prazo de produção: {p.leadTime}</p>}
 
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="text-sm text-slate-500">{pack ? 'a partir de' : price.old ? 'de' : 'a partir de'}{price.old && <span className="ml-1 line-through">{brl(price.old)}</span>}</p>
-            <p className="flex items-baseline gap-2"><span className="text-4xl font-bold text-slate-900 tabular-nums">{brl(price.amount)}</span><span className="text-slate-500">{price.caption}</span></p>
+            <p className="flex items-baseline gap-2"><span className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">{brl(price.amount)}</span><span className="text-slate-500">{price.caption}</span></p>
           </div>
 
-          {/* calculadora */}
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="font-semibold text-slate-900 mb-3">Calcule o seu valor</p>
-            {pack ? (
-              <label className="block"><span className="text-sm text-slate-600">Quantidade</span>
-                <select value={qty} onChange={(e) => setQty(Number(e.target.value))} className="mt-1 w-full h-12 px-4 rounded-xl border border-slate-300 bg-white">
-                  {tiers.map((t) => <option key={t.minQty} value={t.minQty}>{num(t.minQty)} {unitLabelPlural(p.unit, t.minQty)} — {brl(t.price)}</option>)}
-                </select>
-              </label>
-            ) : (
-              <div>
-                <span className="text-sm text-slate-600">Quantidade ({unitName[p.unit]})</span>
-                <div className="mt-1 flex items-center gap-2">
-                  <button type="button" aria-label="Diminuir quantidade" onClick={() => setQty((q) => Math.max(p.minQty || 1, q - Math.max(1, step)))} className="h-12 w-12 rounded-xl border border-slate-300 bg-white flex items-center justify-center hover:border-blue-500"><Minus size={18} /></button>
-                  <input type="number" inputMode="numeric" min={p.minQty || 1} value={qty} onChange={(e) => setQty(Math.max(0, Math.floor(Number(e.target.value) || 0)))} aria-label="Quantidade" className="h-12 flex-1 min-w-0 text-center text-lg font-semibold rounded-xl border border-slate-300 bg-white outline-none focus:border-blue-500" />
-                  <button type="button" aria-label="Aumentar quantidade" onClick={() => setQty((q) => q + Math.max(1, step))} className="h-12 w-12 rounded-xl border border-slate-300 bg-white flex items-center justify-center hover:border-blue-500"><Plus size={18} /></button>
-                </div>
-                {tiers.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{tiers.slice(0, 6).map((t) => <button key={t.minQty} type="button" onClick={() => setQty(t.minQty)} className="h-8 px-3 rounded-full border border-slate-300 bg-white text-xs font-medium hover:border-blue-500">{num(t.minQty)}</button>)}</div>}
-              </div>
-            )}
-            <div className="mt-4 rounded-xl bg-white border border-slate-200 p-4" aria-live="polite">
-              {calc?.ok
-                ? <><p className="text-sm text-slate-500">Total estimado</p><p className="text-3xl font-bold text-blue-700 tabular-nums">{brl(calc.total)}</p><p className="text-xs text-slate-500">{brl(calc.unit)} por {unitName[p.unit]}{calc.offer ? ' · preço de oferta aplicado' : ''}</p></>
-                : <p className="text-sm text-amber-700">{calc?.error}</p>}
+          {/* opções do produto */}
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <p className="flex items-center gap-2 font-semibold text-slate-900 mb-3"><Settings2 size={18} className="text-blue-600" />Opções do produto</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block"><span className="text-sm text-slate-600">Categoria</span>
+                <select value={p.category} onChange={(e) => { const first = home!.products.find((x) => x.category === e.target.value); if (first) navigate(`${SITE}/produto/${first.id}`); }} className={selectCls}>{categories.map((c) => <option key={c}>{c}</option>)}</select></label>
+              <label className="block"><span className="text-sm text-slate-600">Produto / modelo</span>
+                <select value={p.id} onChange={(e) => navigate(`${SITE}/produto/${e.target.value}`)} className={selectCls}>{siblings.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
             </div>
-            <label className="block mt-4"><span className="text-sm text-slate-600">Detalhes do pedido (formato, papel, acabamento…)</span>
+
+            <div className="mt-4">
+              {pack ? (
+                <label className="block"><span className="text-sm text-slate-600">Quantidade</span>
+                  <select value={qty} onChange={(e) => setQty(Number(e.target.value))} className={selectCls}>
+                    {tiers.map((t) => <option key={t.minQty} value={t.minQty}>{num(t.minQty)} {unitLabelPlural(p.unit, t.minQty)} — {brl(t.price)}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <div>
+                  <span className="text-sm text-slate-600">Quantidade ({unitName[p.unit]})</span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <button type="button" aria-label="Diminuir quantidade" onClick={() => setQty((q) => Math.max(p.minQty || 1, q - Math.max(1, step)))} className="h-12 w-12 rounded-xl border border-slate-300 bg-white flex items-center justify-center hover:border-blue-500"><Minus size={18} /></button>
+                    <input type="number" inputMode="numeric" min={p.minQty || 1} value={qty} onChange={(e) => setQty(Math.max(0, Math.floor(Number(e.target.value) || 0)))} aria-label="Quantidade" className="h-12 flex-1 min-w-0 text-center text-lg font-semibold rounded-xl border border-slate-300 bg-white outline-none focus:border-blue-500" />
+                    <button type="button" aria-label="Aumentar quantidade" onClick={() => setQty((q) => q + Math.max(1, step))} className="h-12 w-12 rounded-xl border border-slate-300 bg-white flex items-center justify-center hover:border-blue-500"><Plus size={18} /></button>
+                  </div>
+                  {tiers.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{tiers.slice(0, 6).map((t) => <button key={t.minQty} type="button" onClick={() => setQty(t.minQty)} className="h-8 px-3 rounded-full border border-slate-300 bg-white text-xs font-medium hover:border-blue-500">{num(t.minQty)}</button>)}</div>}
+                  <p className="mt-2 text-xs text-slate-500">Mínimo: {num(p.minQty || 1)} {unitLabelPlural(p.unit, p.minQty || 1)}{calc?.ok ? <> · Valor unitário: <b>{brl(calc.unit)}</b></> : null}</p>
+                </div>
+              )}
+            </div>
+
+            {finishing.length > 0 && renderOpt('Acabamentos opcionais', finishing)}
+            {services.length > 0 && renderOpt('Serviços opcionais', services, true)}
+
+            <label className="block mt-5"><span className="text-sm text-slate-600">Detalhes do pedido (formato, papel, cores…)</span>
               <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value.slice(0, 150))} placeholder="Opcional" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-blue-500" />
             </label>
+
+            <div className="mt-5 rounded-xl bg-white border border-slate-200 p-4" aria-live="polite">
+              {calc?.ok ? (
+                <>
+                  <dl className="text-sm text-slate-600 space-y-1">
+                    <div className="flex justify-between"><dt>Subtotal ({num(qty)} {unitLabelPlural(p.unit, qty)})</dt><dd className="tabular-nums">{brl(calc.total)}</dd></div>
+                    {extras > 0 && <div className="flex justify-between"><dt>Opcionais</dt><dd className="tabular-nums">+ {brl(extras)}</dd></div>}
+                  </dl>
+                  <p className="mt-2 text-sm text-slate-500">Total estimado</p>
+                  <p className="text-3xl font-bold text-blue-700 tabular-nums">{brl(total)}</p>
+                  {calc.offer && <p className="text-xs text-pink-600 font-medium">Preço de oferta aplicado</p>}
+                </>
+              ) : <p className="text-sm text-amber-700">{calc?.error}</p>}
+            </div>
+
             <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
               <button type="button" onClick={add} disabled={!calc?.ok} className={`h-12 rounded-full font-semibold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${added ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>{added ? <><Check size={18} />Adicionado!</> : <><ShoppingCart size={18} />Adicionar ao orçamento</>}</button>
               {wa && <a href={waLink(wa, message)} target="_blank" rel="noreferrer" className="h-12 rounded-full bg-emerald-500 text-white font-semibold inline-flex items-center justify-center gap-2 hover:bg-emerald-600"><MessageCircle size={18} />Pedir pelo WhatsApp</a>}
@@ -112,8 +165,8 @@ const ProductPage: React.FC = () => {
         )}
       </div>
 
-      {p.related.length > 0 && <section className="mt-16"><SectionHead title="Você também pode gostar" /><ProductGrid items={p.related} /></section>}
-    </div>
+      {p.related.length > 0 && <section className="mt-14"><SectionHead title="Você também pode gostar" /><ProductGrid items={p.related} wide /></section>}
+    </ShopShell>
   );
 };
 

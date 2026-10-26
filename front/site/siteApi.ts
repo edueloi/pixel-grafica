@@ -3,11 +3,20 @@ import { createContext, useContext, useSyncExternalStore } from 'react';
 
 export const SITE = '/pagina-teste-site';
 
+/** Rolagem suave (Lenis), ligada só em computador e sem "reduzir movimento". */
+export const lenisRef: { current: { scrollTo: (t: number | HTMLElement, o?: { offset?: number; immediate?: boolean }) => void; stop: () => void; start: () => void } | null } = { current: null };
+/** Trava/destrava a rolagem da página (menu e galeria abertos). */
+export const setScrollLock = (locked: boolean) => {
+  document.body.style.overflow = locked ? 'hidden' : '';
+  if (locked) lenisRef.current?.stop(); else lenisRef.current?.start();
+};
+
 export type Unit = 'un' | 'milheiro' | 'm2' | 'folha';
 export interface Tier { minQty: number; price: number }
+export interface ProductOption { name: string; price: number; kind: 'acabamento' | 'servico' }
 export interface SiteProduct {
   id: string; name: string; category: string; unit: Unit; pricingMode: 'unit' | 'package'; minQty: number; leadTime?: string | null;
-  price: number; offerPrice: number | null; featured: boolean; priceTiers: Tier[]; description: string | null; images: string[];
+  price: number; offerPrice: number | null; featured: boolean; priceTiers: Tier[]; options: ProductOption[]; description: string | null; images: string[];
 }
 export interface SiteProductFull extends SiteProduct { howItWorks: string | null; related: SiteProduct[] }
 export interface SiteBanner { id: string; title: string; subtitle?: string | null; buttonText?: string | null; buttonUrl?: string | null; hasImage: boolean }
@@ -46,6 +55,9 @@ export function priceFrom(p: SiteProduct): { amount: number; old?: number; capti
   return p.offerPrice ? { amount: p.offerPrice, old: p.price, caption: `por ${unitName[p.unit]}` } : { amount: p.price, caption: `por ${unitName[p.unit]}` };
 }
 
+/** Soma dos acabamentos e serviços opcionais escolhidos. */
+export const extrasTotal = (p: SiteProduct, names?: string[]) => Math.round((p.options ?? []).filter((o) => names?.includes(o.name)).reduce((s, o) => s + o.price, 0) * 100) / 100;
+
 export type Calc = { ok: true; unit: number; total: number; offer: boolean } | { ok: false; error: string };
 /** Mesma regra do servidor (back/src/lib/pricing.ts), para o cliente ver o valor enquanto digita. */
 export function calcPrice(p: SiteProduct, qty: number): Calc {
@@ -70,7 +82,7 @@ export const SiteContext = createContext<SiteCtx>({ home: null, error: '', reloa
 export const useSite = () => useContext(SiteContext);
 
 // ── "Meu orçamento": itens escolhidos, guardados no navegador ─────────────────
-export interface CartItem { productId: string; quantity: number; note?: string }
+export interface CartItem { productId: string; quantity: number; note?: string; extras?: string[] }
 const KEY = 'pixel.site.cart';
 const listeners = new Set<() => void>();
 let snapshot: CartItem[] = read();
@@ -90,9 +102,9 @@ export function useCart() {
   return {
     items,
     count: items.length,
-    add: (productId: string, quantity: number, note?: string) => {
+    add: (productId: string, quantity: number, note?: string, extras?: string[]) => {
       const found = snapshot.find((i) => i.productId === productId);
-      write(found ? snapshot.map((i) => (i.productId === productId ? { ...i, quantity, note: note ?? i.note } : i)) : [...snapshot, { productId, quantity, note }]);
+      write(found ? snapshot.map((i) => (i.productId === productId ? { ...i, quantity, note: note ?? i.note, extras: extras ?? i.extras } : i)) : [...snapshot, { productId, quantity, note, extras }]);
     },
     update: (productId: string, patch: Partial<CartItem>) => write(snapshot.map((i) => (i.productId === productId ? { ...i, ...patch } : i))),
     remove: (productId: string) => write(snapshot.filter((i) => i.productId !== productId)),

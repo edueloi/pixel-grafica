@@ -7,7 +7,7 @@ import { prisma } from "../db.js";
 import { signToken, requireAuth, requireRole } from "../auth.js";
 import { ah, HttpError, str, num } from "./util.js";
 import { digits, normalizePhone } from "../lib/text.js";
-import { parseTiers } from "../lib/pricing.js";
+import { parseTiers, parseOptions } from "../lib/pricing.js";
 import { storeBuffer, filePath } from "../lib/files.js";
 
 export const publicRouter = Router();
@@ -125,7 +125,7 @@ const productData = (b: any) => ({
   category: str(b.category, 80) ?? "Geral", description: str(b.description, 5000), howItWorks: str(b.howItWorks, 5000), priceTiers: parseTiers(b.priceTiers) as unknown as object[], unit: str(b.unit, 20) ?? "un",
   pricingMode: b.pricingMode === "package" ? "package" : "unit", leadTime: str(b.leadTime, 80),
   price: Math.max(0, num(b.price)), minQty: Math.max(1, Math.round(num(b.minQty, 1))),
-  offerPrice: num(b.offerPrice) > 0 ? num(b.offerPrice) : null, featured: !!b.featured, showOnSite: b.showOnSite === undefined ? true : !!b.showOnSite,
+  options: parseOptions(b.options) as unknown as object[], offerPrice: num(b.offerPrice) > 0 ? num(b.offerPrice) : null, featured: !!b.featured, showOnSite: b.showOnSite === undefined ? true : !!b.showOnSite,
   active: b.active === undefined ? true : !!b.active,
 });
 const productImages = { images: { orderBy: { sortOrder: "asc" as const }, select: { id: true, name: true, sortOrder: true } } };

@@ -8,7 +8,7 @@ import { strip, samePhone, brl, normalizePhone, digits, validDocument, validEmai
 import { findCustomerByPhone, record } from "./conversations.js";
 import fs from "fs";
 import sharp from "sharp";
-import { parseTiers, quoteWithOffer } from "../lib/pricing.js";
+import { parseTiers, parseOptions, quoteWithOffer } from "../lib/pricing.js";
 import { filePath } from "../lib/files.js";
 
 export type Provider = "gemini" | "openai";
@@ -252,6 +252,7 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       return list.length
         ? list.map((p) => ({
             nome: p.name, categoria: p.category, detalhes: p.description, como_funciona: p.howItWorks, fotos_disponiveis: p.images.length,
+            ...(parseOptions(p.options).length ? { opcionais: parseOptions(p.options).map((o) => `${o.name} (+${brl(o.price)}, ${o.kind === "servico" ? "serviço" : "acabamento"})`) } : {}),
             ...(Number(p.offerPrice) > 0 && p.pricingMode !== "package" ? { oferta_atual: `${brl(Number(p.offerPrice))} cada (preço promocional por unidade)` } : {}),
             unidade: unitName[p.unit] ?? p.unit, prazo: p.leadTime ?? "a consultar com a equipe",
             ...(p.pricingMode === "package"
