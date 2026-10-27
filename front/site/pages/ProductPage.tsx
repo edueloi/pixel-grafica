@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Minus, Plus, ShoppingCart, MessageCircle, Check, Clock, Loader2, PackageX, Flame, Settings2 } from 'lucide-react';
-import { SITE, brl, calcPrice, extrasTotal, num, priceFrom, siteGet, unitName, useCart, useSite, waLink, type SiteProductFull } from '../siteApi';
+import { SITE, brl, calcPrice, calcSizes, extrasTotal, num, priceFrom, siteGet, unitName, useCart, useSite, waLink, type SiteProductFull } from '../siteApi';
 import { Gallery, ProductGrid, SectionHead, ShopShell, defaultQty, unitLabelPlural } from '../components';
 
 const selectCls = 'mt-1 w-full h-10 px-3 rounded-lg border border-slate-300 bg-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
@@ -17,6 +17,8 @@ const ProductPage: React.FC = () => {
   const [note, setNote] = useState('');
   const [chosen, setChosen] = useState<string[]>([]);
   const [added, setAdded] = useState(false);
+  const [sizes, setSizes] = useState<Record<string, number>>({});
+  const [color, setColor] = useState('');
   const wa = home!.company?.whatsapp;
 
   useEffect(() => {
@@ -25,6 +27,7 @@ const ProductPage: React.FC = () => {
       setP(r);
       const inCart = cart.items.find((i) => i.productId === r.id);
       setQty(inCart?.quantity ?? defaultQty(r)); setNote(inCart?.note ?? ''); setChosen(inCart?.extras ?? []);
+      setSizes(inCart?.sizes ?? {}); setColor(inCart?.color ?? r.variants?.colors[0]?.name ?? '');
     }).catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -32,7 +35,11 @@ const ProductPage: React.FC = () => {
   const tiers = useMemo(() => (p ? [...p.priceTiers].sort((a, b) => a.minQty - b.minQty) : []), [p]);
   const categories = useMemo(() => [...new Set(home!.products.map((x) => x.category))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [home]);
   const siblings = useMemo(() => (p ? home!.products.filter((x) => x.category === p.category) : []), [home, p]);
-  const calc = p ? calcPrice(p, qty) : null;
+  const hasSizes = !!p?.variants?.sizes.length;
+  const sc = p && hasSizes ? calcSizes(p, sizes) : null;
+  const calc = p ? (sc ? (sc.ok ? { ok: true as const, unit: sc.unit, total: sc.total, offer: false } : sc) : calcPrice(p, qty)) : null;
+  const pieces = sc?.ok ? sc.qty : qty;
+  const sizeText = sc?.ok ? sc.lines.map((l) => `${l.quantity} ${l.size}`).join(', ') : '';
 
   if (error) return <div className="pxs-container py-24 text-center"><PackageX size={44} className="mx-auto text-slate-400 mb-3" /><p className="text-lg font-semibold text-slate-800">{error}</p><Link to={`${SITE}/catalogo`} className="inline-flex mt-5 h-11 px-6 items-center rounded-full bg-blue-600 text-white font-semibold">Ver o catálogo</Link></div>;
   if (!p) return <div role="status" className="py-32 flex items-center justify-center gap-2 text-slate-500"><Loader2 className="animate-spin" size={20} />Carregando produto…</div>;
@@ -45,8 +52,8 @@ const ProductPage: React.FC = () => {
   const finishing = p.options.filter((o) => o.kind === 'acabamento');
   const services = p.options.filter((o) => o.kind === 'servico');
   const toggle = (name: string) => setChosen((c) => (c.includes(name) ? c.filter((x) => x !== name) : [...c, name]));
-  const message = [`Olá! Quero um orçamento de ${num(qty)} ${unitLabelPlural(p.unit, qty)} de ${p.name}${note ? ` (${note})` : ''}.`, chosen.length ? `Opcionais: ${chosen.join(', ')}` : '', calc?.ok ? `Total estimado: ${brl(total)}` : ''].filter(Boolean).join('\n');
-  const add = () => { cart.add(p.id, qty, note.trim() || undefined, chosen); setAdded(true); setTimeout(() => setAdded(false), 2000); };
+  const message = [`Olá! Quero um orçamento de ${num(pieces)} ${unitLabelPlural(p.unit, pieces)} de ${p.name}${hasSizes ? ` (${color ? `cor ${color}, ` : ''}tamanhos: ${sizeText})` : note ? ` (${note})` : ''}.`, chosen.length ? `Opcionais: ${chosen.join(', ')}` : '', calc?.ok ? `Total estimado: ${brl(total)}` : ''].filter(Boolean).join('\n');
+  const add = () => { cart.add(p.id, pieces, note.trim() || undefined, chosen, hasSizes ? { sizes, color } : undefined); setAdded(true); setTimeout(() => setAdded(false), 2000); };
 
   const renderOpt = (title: string, items: typeof p.options, card?: boolean) => (
     <fieldset key={title} className={`mt-5 ${card ? 'rounded-xl border border-slate-200 bg-white p-4' : ''}`}>
@@ -98,7 +105,40 @@ const ProductPage: React.FC = () => {
             </div>
 
             <div className="mt-4">
-              {pack ? (
+              {hasSizes ? (
+                <div>
+                  {p.variants!.colors.length > 0 && (
+                    <fieldset className="mb-4">
+                      <legend className="text-sm text-slate-600 mb-1.5">Cor: <b className="text-slate-900">{color}</b></legend>
+                      <div className="flex flex-wrap gap-2">
+                        {p.variants!.colors.map((c) => (
+                          <button key={c.name} type="button" aria-pressed={color === c.name} onClick={() => setColor(c.name)} className={`flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full border bg-white text-sm transition ${color === c.name ? 'border-blue-600 ring-2 ring-blue-100 font-semibold text-slate-900' : 'border-slate-300 text-slate-700 hover:border-slate-400'}`}>
+                            <span className="h-6 w-6 rounded-full border border-slate-300" style={{ background: c.hex || '#e2e8f0' }} aria-hidden="true" />{c.name}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
+                  <span className="text-sm text-slate-600">Tamanhos e quantidades</span>
+                  <ul className="mt-1.5 grid gap-2 sm:grid-cols-2">
+                    {p.variants!.sizes.map((sz) => {
+                      const n = sizes[sz.name] || 0;
+                      const setN = (v: number) => setSizes((x) => ({ ...x, [sz.name]: Math.max(0, Math.min(9999, Math.floor(v) || 0)) }));
+                      return (
+                        <li key={sz.name} className={`flex items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2 ${n > 0 ? 'border-blue-300' : 'border-slate-200'}`}>
+                          <span className="text-sm text-slate-800"><b>{sz.name}</b>{sz.surcharge > 0 && <span className="ml-1.5 text-xs text-amber-700">+ {brl(sz.surcharge)} por peça</span>}</span>
+                          <span className="flex items-center gap-1">
+                            <button type="button" aria-label={`Diminuir ${sz.name}`} onClick={() => setN(n - 1)} className="h-8 w-8 rounded-md border border-slate-300 flex items-center justify-center hover:border-blue-500"><Minus size={14} /></button>
+                            <input type="number" inputMode="numeric" min={0} value={n || ''} placeholder="0" aria-label={`Quantidade tamanho ${sz.name}`} onChange={(e) => setN(Number(e.target.value))} className="h-8 w-12 text-center text-sm font-semibold rounded-md border border-slate-300 outline-none focus:border-blue-500" />
+                            <button type="button" aria-label={`Aumentar ${sz.name}`} onClick={() => setN(n + 1)} className="h-8 w-8 rounded-md border border-slate-300 flex items-center justify-center hover:border-blue-500"><Plus size={14} /></button>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="mt-2 text-xs text-slate-500">Total de peças: <b>{num(pieces)}</b>{sc?.ok ? <> · Valor base por peça: <b>{brl(sc.unit)}</b></> : null}. A faixa de preço vale pelo total de peças do pedido.</p>
+                </div>
+              ) : pack ? (
                 <label className="block"><span className="text-sm text-slate-600">Quantidade</span>
                   <select value={qty} onChange={(e) => setQty(Number(e.target.value))} className={selectCls}>
                     {tiers.map((t) => <option key={t.minQty} value={t.minQty}>{num(t.minQty)} {unitLabelPlural(p.unit, t.minQty)} — {brl(t.price)}</option>)}
@@ -129,7 +169,8 @@ const ProductPage: React.FC = () => {
               {calc?.ok ? (
                 <>
                   <dl className="text-sm text-slate-600 space-y-1">
-                    <div className="flex justify-between"><dt>Subtotal ({num(qty)} {unitLabelPlural(p.unit, qty)})</dt><dd className="tabular-nums">{brl(calc.total)}</dd></div>
+                    <div className="flex justify-between"><dt>Subtotal ({num(pieces)} {unitLabelPlural(p.unit, pieces)})</dt><dd className="tabular-nums">{brl(calc.total)}</dd></div>
+                    {sc?.ok && sc.lines.map((l) => <div key={l.size} className="flex justify-between text-xs text-slate-500"><dt>{l.quantity} × {l.size}</dt><dd className="tabular-nums">{brl(l.unit)} cada</dd></div>)}
                     {extras > 0 && <div className="flex justify-between"><dt>Opcionais</dt><dd className="tabular-nums">+ {brl(extras)}</dd></div>}
                   </dl>
                   <p className="mt-2 text-sm text-slate-500">Total estimado</p>
@@ -141,7 +182,7 @@ const ProductPage: React.FC = () => {
 
             <div className="mt-4 grid gap-2.5 2xl:grid-cols-2">
               <button type="button" onClick={add} disabled={!calc?.ok} className={`h-10 rounded-full text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 ${added ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>{added ? <><Check size={15} />Adicionado!</> : <><ShoppingCart size={15} />Adicionar ao orçamento</>}</button>
-              <button type="button" disabled={!calc?.ok} onClick={() => { cart.add(p.id, qty, note.trim() || undefined, chosen); navigate(`${SITE}/orcamento`); }} className="pxs-shimmer h-10 rounded-full bg-emerald-500 text-white text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-emerald-600 disabled:opacity-50"><MessageCircle size={15} />Pedir agora</button>
+              <button type="button" disabled={!calc?.ok} onClick={() => { cart.add(p.id, pieces, note.trim() || undefined, chosen, hasSizes ? { sizes, color } : undefined); navigate(`${SITE}/orcamento`); }} className="pxs-shimmer h-10 rounded-full bg-emerald-500 text-white text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-emerald-600 disabled:opacity-50"><MessageCircle size={15} />Pedir agora</button>
             </div>
             {cart.items.length > 0 && <Link to={`${SITE}/orcamento`} className="mt-3 block text-center text-sm font-semibold text-blue-700 hover:underline">Ver meu orçamento ({cart.items.length} {cart.items.length === 1 ? 'item' : 'itens'})</Link>}
             <p className="mt-3 text-xs text-slate-500">Valores de tabela para impressão padrão; sujeitos a confirmação no orçamento.</p>

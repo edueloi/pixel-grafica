@@ -8,7 +8,7 @@ import { ah, HttpError, str, num } from "./util.js";
 import { requireRole } from "../auth.js";
 import { filePath } from "../lib/files.js";
 import { saveSiteImage } from "../lib/images.js";
-import { quoteWithOffer, parseTiers, parseOptions } from "../lib/pricing.js";
+import { quoteWithOffer, parseTiers, parseOptions, parseVariants, quoteSizes } from "../lib/pricing.js";
 import { digits, normalizePhone, samePhone } from "../lib/text.js";
 import * as wa from "../wa/index.js";
 import { parseAttendants } from "../wa/conversations.js";
@@ -53,7 +53,7 @@ function summary(p: any) {
   const offer = Number(p.offerPrice) > 0 && p.pricingMode !== "package" && Number(p.offerPrice) < Number(p.price) ? Number(p.offerPrice) : null;
   return {
     id: p.id, name: p.name, category: p.category, unit: p.unit, pricingMode: p.pricingMode, minQty: p.minQty, leadTime: p.leadTime,
-    price: Number(p.price), offerPrice: offer, featured: !!p.featured, priceTiers: parseTiers(p.priceTiers), options: parseOptions(p.options),
+    price: Number(p.price), offerPrice: offer, featured: !!p.featured, priceTiers: parseTiers(p.priceTiers), options: parseOptions(p.options), variants: parseVariants(p.variants),
     description: p.description ? String(p.description).replace(/\s+/g, " ").slice(0, 200) : null,
     images: p.images.map((i: any) => i.id),
   };
@@ -112,6 +112,11 @@ publicSite.get("/site/catalogs/:id", ah(async (req, res) => {
 publicSite.post("/site/price", ah(async (req, res) => {
   const p = await prisma.product.findFirst({ where: { id: String(req.body?.productId ?? ""), active: true, showOnSite: true } });
   if (!p) throw new HttpError(404, "Produto não encontrado.");
+  const variants = parseVariants(p.variants);
+  if (variants?.sizes.length && req.body?.sizes && typeof req.body.sizes === "object") {
+    const s = quoteSizes(p, variants, req.body.sizes);
+    return res.json(s.ok ? { ok: true, unitPrice: s.unitPrice, total: s.total, quantity: s.qty, lines: s.lines } : { ok: false, error: s.error });
+  }
   const qty = Math.round(num(req.body?.quantity));
   const r = quoteWithOffer(p, qty);
   if (r.ok) return res.json({ ok: true, unitPrice: r.unitPrice, total: r.total, offerApplied: !!r.offerApplied });
@@ -141,13 +146,24 @@ publicSite.post("/site/quote-request", ah(async (req, res) => {
   for (const it of rawItems) {
     const p = byId.get(String(it?.productId));
     const qty = Math.round(num(it?.quantity));
+    const variants = p ? parseVariants(p.variants) : null;
+    const note = str(it?.note, 150);
+    if (p && variants?.sizes.length && it?.sizes && typeof it.sizes === "object") {
+      // roupa: uma linha por tamanho (cada um com o acréscimo do seu tamanho) e a cor escolhida
+      const sq = quoteSizes(p, variants, it.sizes);
+      const color = variants.colors.find((c) => c.name === String(it?.color ?? ""))?.name;
+      if (sq.ok && sq.qty <= 100_000) {
+        for (const l of sq.lines) lines.push({ productId: p.id, quantity: l.quantity, priced: true, unitPrice: l.unitPrice, total: l.total, description: `${p.name}${color ? ` — Cor: ${color}` : ""} — Tam. ${l.size}${note ? ` — ${note}` : ""}` });
+      } else continue;
+    } else {
     if (!p || !(qty > 0) || qty > 10_000_000) continue;
     const r = quoteWithOffer(p, qty);
-    const note = str(it?.note, 150);
     lines.push({
       productId: p.id, quantity: qty, priced: r.ok, unitPrice: r.ok ? r.unitPrice : 0, total: r.ok ? r.total : 0,
       description: `${p.name}${note ? ` — ${note}` : ""}${r.ok ? "" : " (valor sob consulta)"}`,
     });
+    }
+    if (!p) continue;
     // acabamentos e serviços opcionais escolhidos: cada um vira uma linha própria, com o preço cadastrado no produto
     const chosen: string[] = Array.isArray(it?.extras) ? it.extras.map((x: unknown) => String(x)).slice(0, 12) : [];
     for (const opt of parseOptions(p.options).filter((o) => chosen.includes(o.name))) {

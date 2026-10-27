@@ -27,6 +27,8 @@ const ProductFormPage: React.FC = () => {
   const [f, setF] = useState({ name: '', category: 'Geral', unit: 'un', pricingMode: 'unit' as 'unit' | 'package', price: '', minQty: '1', leadTime: '', description: '', howItWorks: '', active: true, showOnSite: true, featured: false, offerPrice: '' });
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [opts, setOpts] = useState<{ name: string; price: string; kind: 'acabamento' | 'servico' }[]>([]);
+  const [vsizes, setVsizes] = useState<{ name: string; surcharge: string }[]>([]);
+  const [vcolors, setVcolors] = useState<{ name: string; hex: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -36,6 +38,8 @@ const ProductFormPage: React.FC = () => {
     if (!p) return;
     setF({ name: p.name, category: p.category, unit: p.unit, pricingMode: p.pricingMode ?? 'unit', price: String(p.price), minQty: String(p.minQty), leadTime: p.leadTime ?? '', description: p.description ?? '', howItWorks: p.howItWorks ?? '', showOnSite: p.showOnSite !== false, featured: !!p.featured, offerPrice: p.offerPrice ? String(p.offerPrice) : '', active: p.active });
     setTiers((p.priceTiers ?? []).map((t) => ({ minQty: String(t.minQty), price: String(t.price) })));
+    setVsizes((p.variants?.sizes ?? []).map((z) => ({ name: z.name, surcharge: z.surcharge ? String(z.surcharge) : '' })));
+    setVcolors((p.variants?.colors ?? []).map((c) => ({ name: c.name, hex: c.hex ?? '#ffffff' })));
     setOpts((p.options ?? []).map((o) => ({ name: o.name, price: String(o.price), kind: o.kind })));
   }, [data]);
 
@@ -53,7 +57,7 @@ const ProductFormPage: React.FC = () => {
     try {
       const parsed = tiers.map((t) => ({ minQty: Number(t.minQty), price: Number(String(t.price).replace(',', '.')) })).filter((t) => t.minQty > 0 && Number.isFinite(t.price));
       const options = opts.filter((o) => o.name.trim()).map((o) => ({ name: o.name.trim(), price: Number(String(o.price).replace(',', '.')) || 0, kind: o.kind }));
-      const r = await api.post<{ description: string | null; howItWorks: string | null }>('/products/ai-fill', { ...f, price: Number(String(f.price).replace(',', '.')) || 0, minQty: Number(f.minQty) || 1, priceTiers: parsed, options });
+      const r = await api.post<{ description: string | null; howItWorks: string | null }>('/products/ai-fill', { ...f, variants: { sizes: vsizes.filter((z) => z.name.trim()).map((z) => ({ name: z.name.trim(), surcharge: Number(String(z.surcharge).replace(',', '.')) || 0 })), colors: vcolors.filter((c) => c.name.trim()) }, price: Number(String(f.price).replace(',', '.')) || 0, minQty: Number(f.minQty) || 1, priceTiers: parsed, options });
       setF((x) => ({ ...x, description: r.description ?? x.description, howItWorks: r.howItWorks ?? x.howItWorks }));
       toast.success('Textos preenchidos pela IA. Revise e salve.');
     } catch (e) { setFormError(errMsg(e)); }
@@ -78,7 +82,8 @@ const ProductFormPage: React.FC = () => {
     setSaving(true); setFormError('');
     try {
       const options = opts.filter((o) => o.name.trim()).map((o) => ({ name: o.name.trim(), price: Number(String(o.price).replace(',', '.')) || 0, kind: o.kind }));
-      const body = { ...f, price, minQty, priceTiers: parsed, offerPrice: pack ? 0 : offer, options };
+      const variants = { sizes: vsizes.filter((z) => z.name.trim()).map((z) => ({ name: z.name.trim(), surcharge: Number(String(z.surcharge).replace(',', '.')) || 0 })), colors: vcolors.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), hex: c.hex })) };
+      const body = { ...f, price, minQty, priceTiers: parsed, offerPrice: pack ? 0 : offer, options, variants };
       const saved = isEditing ? await api.put<Product>(`/products/${id}`, body) : await api.post<Product>('/products', body);
       toast.success(isEditing ? 'Produto atualizado.' : 'Produto cadastrado.');
       navigate(isEditing ? `/produtos/${saved.id}` : `/produtos/${saved.id}/editar`); // produto novo: já abre a edição para adicionar as fotos
@@ -144,6 +149,38 @@ const ProductFormPage: React.FC = () => {
               </div>
             ))}
             <Button variant="outline" size="xs" iconLeft={<Plus size={12} />} onClick={() => setOpts((x) => [...x, { name: '', price: '', kind: 'acabamento' }])}>Opcional</Button>
+          </div>
+        </PanelCard>
+
+        <PanelCard title="Tamanhos e cores (roupas)" description="Para camisetas e similares: o cliente escolhe quantas peças de cada tamanho e a cor. A faixa de preço (acima) vale pelo TOTAL de peças; o acréscimo de um tamanho é cobrado por peça desse tamanho. Deixe vazio para produtos sem variações.">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-700">Tamanhos</p>
+              {vsizes.length === 0 && <p className="text-[11px] text-slate-400">Nenhum tamanho: o produto é vendido só por quantidade.</p>}
+              {vsizes.map((z, i) => (
+                <div key={i} className="grid grid-cols-[1fr_8rem_auto] gap-2 items-end">
+                  <Input label={i === 0 ? 'Tamanho' : undefined} aria-label="Tamanho" value={z.name} onChange={(e) => setVsizes((x) => x.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))} placeholder="Ex.: M" />
+                  <Input label={i === 0 ? 'Acréscimo por peça (R$)' : undefined} aria-label="Acréscimo por peça" inputMode="decimal" value={z.surcharge} onChange={(e) => setVsizes((x) => x.map((r, j) => (j === i ? { ...r, surcharge: e.target.value } : r)))} placeholder="0" />
+                  <IconButton variant="ghost" size="md" aria-label="Remover tamanho" onClick={() => setVsizes((x) => x.filter((_, j) => j !== i))}><Trash2 /></IconButton>
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="xs" iconLeft={<Plus size={12} />} onClick={() => setVsizes((x) => [...x, { name: '', surcharge: '' }])}>Tamanho</Button>
+                {vsizes.length === 0 && <Button variant="ghost" size="xs" onClick={() => setVsizes(['P', 'M', 'G', 'GG'].map((name) => ({ name, surcharge: '' })))}>Usar P, M, G, GG</Button>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-700">Cores disponíveis</p>
+              {vcolors.length === 0 && <p className="text-[11px] text-slate-400">Nenhuma cor: o cliente não escolhe cor.</p>}
+              {vcolors.map((c, i) => (
+                <div key={i} className="grid grid-cols-[2.5rem_1fr_auto] gap-2 items-end">
+                  <input type="color" aria-label="Cor" value={c.hex} onChange={(e) => setVcolors((x) => x.map((r, j) => (j === i ? { ...r, hex: e.target.value } : r)))} className="h-9 w-10 rounded-md border border-slate-300 bg-white p-0.5 cursor-pointer" />
+                  <Input aria-label="Nome da cor" value={c.name} onChange={(e) => setVcolors((x) => x.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))} placeholder="Ex.: Azul marinho" />
+                  <IconButton variant="ghost" size="md" aria-label="Remover cor" onClick={() => setVcolors((x) => x.filter((_, j) => j !== i))}><Trash2 /></IconButton>
+                </div>
+              ))}
+              <Button variant="outline" size="xs" iconLeft={<Plus size={12} />} onClick={() => setVcolors((x) => [...x, { name: '', hex: '#1e3a8a' }])}>Cor</Button>
+            </div>
           </div>
         </PanelCard>
 

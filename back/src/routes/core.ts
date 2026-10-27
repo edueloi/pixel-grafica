@@ -4,10 +4,11 @@ import multer from "multer";
 import fs from "fs";
 import bcrypt from "bcryptjs";
 import { prisma } from "../db.js";
+import { Prisma } from "@prisma/client";
 import { signToken, requireAuth, requireRole } from "../auth.js";
 import { ah, HttpError, str, num } from "./util.js";
 import { digits, normalizePhone } from "../lib/text.js";
-import { parseTiers, parseOptions } from "../lib/pricing.js";
+import { parseTiers, parseOptions, parseVariants } from "../lib/pricing.js";
 import { storeBuffer, filePath } from "../lib/files.js";
 import { completeText } from "../wa/ai.js";
 
@@ -126,7 +127,7 @@ const productData = (b: any) => ({
   category: str(b.category, 80) ?? "Geral", description: str(b.description, 5000), howItWorks: str(b.howItWorks, 5000), priceTiers: parseTiers(b.priceTiers) as unknown as object[], unit: str(b.unit, 20) ?? "un",
   pricingMode: b.pricingMode === "package" ? "package" : "unit", leadTime: str(b.leadTime, 80),
   price: Math.max(0, num(b.price)), minQty: Math.max(1, Math.round(num(b.minQty, 1))),
-  options: parseOptions(b.options) as unknown as object[], offerPrice: num(b.offerPrice) > 0 ? num(b.offerPrice) : null, featured: !!b.featured, showOnSite: b.showOnSite === undefined ? true : !!b.showOnSite,
+  options: parseOptions(b.options) as unknown as object[], variants: (parseVariants(b.variants) ?? Prisma.DbNull) as any, offerPrice: num(b.offerPrice) > 0 ? num(b.offerPrice) : null, featured: !!b.featured, showOnSite: b.showOnSite === undefined ? true : !!b.showOnSite,
   active: b.active === undefined ? true : !!b.active,
 });
 const productImages = { images: { orderBy: { sortOrder: "asc" as const }, select: { id: true, name: true, sortOrder: true } } };
@@ -158,6 +159,7 @@ router.post("/products/ai-fill", requireRole("atendente"), ah(async (req, res) =
   const facts = [
     `Nome: ${name}`, `Categoria: ${str(b.category, 80) ?? ""}`, `Unidade: ${str(b.unit, 20) ?? "un"}`,
     `Preço: ${b.pricingMode === "package" ? "tabela fechada (total por quantidade exata)" : "por unidade, com faixas"} — base R$ ${num(b.price)}; faixas: ${tiers || "nenhuma"}`,
+    ...((v) => (v ? [`Tamanhos: ${v.sizes.map((z) => `${z.name}${z.surcharge ? ` (+R$ ${z.surcharge} por peça)` : ""}`).join(", ") || "nenhum"}; cores: ${v.colors.map((c) => c.name).join(", ") || "nenhuma"}`] : []))(parseVariants(b.variants)),
     `Quantidade mínima: ${Math.max(1, Math.round(num(b.minQty, 1)))}`, `Prazo: ${str(b.leadTime, 80) ?? "não informado"}`, `Opcionais: ${opts || "nenhum"}`,
     `Descrição atual: ${str(b.description, 3000) ?? "(vazia)"}`, `Como funciona atual: ${str(b.howItWorks, 3000) ?? "(vazio)"}`,
   ].join("\n");

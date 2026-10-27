@@ -31,6 +31,40 @@ export function parseOptions(raw: unknown): ProductOption[] {
     .slice(0, 12);
 }
 
+export interface ProductVariants { sizes: { name: string; surcharge: number }[]; colors: { name: string; hex?: string }[] }
+/** Tamanhos (com acréscimo por peça) e cores do produto, para roupas. null = produto sem variações. */
+export function parseVariants(raw: unknown): ProductVariants | null {
+  const r = raw as any;
+  const sizes = (Array.isArray(r?.sizes) ? r.sizes : [])
+    .map((s: any) => ({ name: String(s?.name ?? "").trim().slice(0, 20), surcharge: Math.max(0, Math.round(Number(s?.surcharge ?? 0) * 100) / 100) || 0 }))
+    .filter((s: { name: string }) => s.name).slice(0, 20);
+  const colors = (Array.isArray(r?.colors) ? r.colors : [])
+    .map((c: any) => ({ name: String(c?.name ?? "").trim().slice(0, 40), ...(/^#[0-9a-f]{6}$/i.test(String(c?.hex ?? "")) ? { hex: String(c.hex).toLowerCase() } : {}) }))
+    .filter((c: { name: string }) => c.name).slice(0, 24);
+  return sizes.length || colors.length ? { sizes, colors } : null;
+}
+
+export type SizeQuote = { ok: true; qty: number; unitPrice: number; total: number; lines: { size: string; quantity: number; unitPrice: number; total: number }[] } | { ok: false; error: string };
+/** Preço por tamanhos: a faixa de preço vale pelo TOTAL de peças; cada peça paga o acréscimo do seu tamanho. */
+export function quoteSizes(p: POffer, variants: ProductVariants | null, wanted: Record<string, number>): SizeQuote {
+  const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "");
+  const picks: { size: string; surcharge: number; quantity: number }[] = [];
+  for (const [name, q] of Object.entries(wanted)) {
+    const quantity = Math.floor(Number(q));
+    if (!(quantity > 0)) continue;
+    const v = variants?.sizes.find((s) => norm(s.name) === norm(name));
+    if (!v) return { ok: false, error: `Tamanho "${name}" não existe neste produto. Tamanhos: ${(variants?.sizes ?? []).map((s) => s.name).join(", ") || "nenhum"}.` };
+    picks.push({ size: v.name, surcharge: v.surcharge, quantity });
+  }
+  const qty = picks.reduce((s, x) => s + x.quantity, 0);
+  if (!(qty > 0)) return { ok: false, error: "Escolha ao menos uma peça." };
+  const base = quoteWithOffer(p, qty);
+  if (!base.ok) return { ok: false, error: base.error };
+  const lines = picks.map((x) => ({ size: x.size, quantity: x.quantity, unitPrice: r6(base.unitPrice + x.surcharge), total: r2((base.unitPrice + x.surcharge) * x.quantity) }));
+  const total = r2(lines.reduce((s, l) => s + l.total, 0));
+  return { ok: true, qty, unitPrice: base.unitPrice, total, lines };
+}
+
 interface POffer extends P { offerPrice?: unknown }
 
 /** Igual a quotePrice, mas aplica a oferta do produto (preço unitário promocional, só em preço por unidade): vale o menor preço. */

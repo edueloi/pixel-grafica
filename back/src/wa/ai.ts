@@ -8,7 +8,7 @@ import { strip, samePhone, brl, normalizePhone, digits, validDocument, validEmai
 import { findCustomerByPhone, record } from "./conversations.js";
 import fs from "fs";
 import sharp from "sharp";
-import { parseTiers, parseOptions, quoteWithOffer } from "../lib/pricing.js";
+import { parseTiers, parseOptions, parseVariants, quoteSizes, quoteWithOffer } from "../lib/pricing.js";
 import { filePath } from "../lib/files.js";
 
 export type Provider = "gemini" | "openai";
@@ -79,7 +79,7 @@ const toolDefs: ToolDef[] = [
   {
     name: "calcular_preco",
     description: "Calcula o preço de um produto aplicando a faixa de quantidade. A quantidade é SEMPRE na unidade do produto: para 'milheiro' use 0.5 para 500 unidades e 2 para 2000; para 'm2' use os metros quadrados; para 'unidade' o número de unidades.",
-    parameters: { type: "object", properties: { produto: { type: "string", description: "Nome (ou parte) do produto" }, quantidade: { type: "number", description: "Quantidade na unidade do produto" }, opcionais: { type: "array", items: { type: "string" }, description: "Acabamentos/serviços opcionais que o cliente quer, exatamente como em listar_produtos (opcionais). Cada um tem valor fixo por pedido e é somado ao total." } }, required: ["produto", "quantidade"] },
+    parameters: { type: "object", properties: { produto: { type: "string", description: "Nome (ou parte) do produto" }, quantidade: { type: "number", description: "Quantidade na unidade do produto (em roupas, pode omitir e usar tamanhos)" }, tamanhos: { type: "array", items: { type: "object", properties: { tamanho: { type: "string" }, quantidade: { type: "number" } }, required: ["tamanho", "quantidade"] }, description: "Só para roupas (produto com tamanhos em listar_produtos): quantas peças de cada tamanho. A quantidade total define a faixa de preço; tamanhos maiores têm acréscimo por peça." }, opcionais: { type: "array", items: { type: "string" }, description: "Acabamentos/serviços opcionais que o cliente quer, exatamente como em listar_produtos (opcionais). Cada um tem valor fixo por pedido e é somado ao total." } }, required: ["produto"] },
   },
   {
     name: "buscar_nos_arquivos",
@@ -106,7 +106,7 @@ const toolDefs: ToolDef[] = [
           type: "array",
           items: {
             type: "object",
-            properties: { produto: { type: "string" }, quantidade: { type: "number", description: "Na unidade do produto" }, observacao: { type: "string", description: "Formato, papel, acabamento…" }, opcionais: { type: "array", items: { type: "string" }, description: "Opcionais que o cliente pediu para este produto (nome exato de listar_produtos). Cada um vira uma linha própria no orçamento." } },
+            properties: { produto: { type: "string" }, quantidade: { type: "number", description: "Na unidade do produto" }, observacao: { type: "string", description: "Formato, papel, acabamento…" }, tamanhos: { type: "array", items: { type: "object", properties: { tamanho: { type: "string" }, quantidade: { type: "number" } }, required: ["tamanho", "quantidade"] }, description: "Só para roupas (produto com tamanhos em listar_produtos): quantas peças de cada tamanho. A quantidade total define a faixa de preço; tamanhos maiores têm acréscimo por peça." }, cor: { type: "string", description: "Cor escolhida (roupas), exatamente como em listar_produtos" }, opcionais: { type: "array", items: { type: "string" }, description: "Opcionais que o cliente pediu para este produto (nome exato de listar_produtos). Cada um vira uma linha própria no orçamento." } },
             required: ["produto", "quantidade"],
           },
         },
@@ -252,6 +252,7 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       return list.length
         ? list.map((p) => ({
             nome: p.name, categoria: p.category, detalhes: p.description, como_funciona: p.howItWorks, fotos_disponiveis: p.images.length,
+            ...(parseVariants(p.variants) ? { tamanhos: parseVariants(p.variants)!.sizes.map((s) => (s.surcharge > 0 ? `${s.name} (+${brl(s.surcharge)} por peça)` : s.name)), cores: parseVariants(p.variants)!.colors.map((c) => c.name) } : {}),
             ...(parseOptions(p.options).length ? { opcionais: parseOptions(p.options).map((o) => `${o.name} (+${brl(o.price)}, ${o.kind === "servico" ? "serviço" : "acabamento"})`) } : {}),
             ...(Number(p.offerPrice) > 0 && p.pricingMode !== "package" ? { oferta_atual: `${brl(Number(p.offerPrice))} cada (preço promocional por unidade)` } : {}),
             unidade: unitName[p.unit] ?? p.unit, prazo: p.leadTime ?? "a consultar com a equipe",
@@ -284,6 +285,17 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
       const found = await findProduct(String(args?.produto || ""));
       if ("error" in found) return { erro: found.error };
       const p = found.product;
+      const variants = parseVariants(p.variants);
+      if (variants?.sizes.length && Array.isArray(args?.tamanhos) && args.tamanhos.length) {
+        const wanted: Record<string, number> = {};
+        for (const t of args.tamanhos) wanted[String(t?.tamanho ?? "")] = (wanted[String(t?.tamanho ?? "")] ?? 0) + (Number(t?.quantidade) || 0);
+        const sq = quoteSizes(p, variants, wanted);
+        if (!sq.ok) return { erro: sq.error, produto: p.name };
+        const wantedO: string[] = Array.isArray(args?.opcionais) ? args.opcionais.map((x: unknown) => strip(String(x))) : [];
+        const chosenO = parseOptions(p.options).filter((o) => wantedO.includes(strip(o.name)));
+        const extrasO = Math.round(chosenO.reduce((s2, o) => s2 + o.price, 0) * 100) / 100;
+        return { produto: p.name, total_de_pecas: sq.qty, preco_base_por_peca: brl(sq.unitPrice), por_tamanho: sq.lines.map((l) => `${l.quantity}x ${l.size} a ${brl(l.unitPrice)} = ${brl(l.total)}`), total: brl(sq.total + extrasO), ...(chosenO.length ? { opcionais_incluidos: chosenO.map((o) => `${o.name} (+${brl(o.price)})`) } : {}), aviso: "A faixa de preço vale pelo total de peças do pedido." };
+      }
       const qty = Number(args?.quantidade) || 0;
       const r = quoteWithOffer(p, qty);
       if (!r.ok) return { erro: r.error, produto: p.name };
@@ -349,6 +361,19 @@ export async function runTool(name: string, args: any, conv: AiConversation, out
         const found = await findProduct(String(it.produto || ""));
         if ("error" in found) return { erro: found.error };
         const p = found.product;
+        const variants = parseVariants(p.variants);
+        if (variants?.sizes.length && Array.isArray(it.tamanhos) && it.tamanhos.length) {
+          const wantedS: Record<string, number> = {};
+          for (const t of it.tamanhos) wantedS[String(t?.tamanho ?? "")] = (wantedS[String(t?.tamanho ?? "")] ?? 0) + (Number(t?.quantidade) || 0);
+          const sq = quoteSizes(p, variants, wantedS);
+          if (!sq.ok) return { erro: `${p.name}: ${sq.error}` };
+          const cor = variants.colors.find((c) => strip(c.name) === strip(String(it.cor || "")))?.name;
+          if (variants.colors.length && !cor) return { erro: `Qual a cor? Disponíveis: ${variants.colors.map((c) => c.name).join(", ")}.` };
+          for (const l of sq.lines) lines.push({ productId: p.id, description: `${p.name}${cor ? ` — Cor: ${cor}` : ""} — Tam. ${l.size}${it.observacao ? ` — ${String(it.observacao).slice(0, 150)}` : ""}`, quantity: l.quantity, unitPrice: l.unitPrice, total: l.total });
+          const wantedX: string[] = Array.isArray(it.opcionais) ? it.opcionais.map((x: unknown) => strip(String(x))) : [];
+          for (const o of parseOptions(p.options).filter((o) => wantedX.includes(strip(o.name)))) lines.push({ productId: p.id, description: `${o.kind === "servico" ? "Serviço" : "Acabamento"}: ${o.name} (${p.name})`, quantity: 1, unitPrice: o.price, total: o.price });
+          continue;
+        }
         const q = Number(it.quantidade) || 0;
         const r = quoteWithOffer(p, q);
         if (!r.ok) return { erro: `${p.name}: ${r.error}` };

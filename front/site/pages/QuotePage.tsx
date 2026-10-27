@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Minus, Plus, ShoppingCart, MessageCircle, CheckCircle2, Loader2, Send, User, Phone, Hash, BellRing } from 'lucide-react';
-import { SITE, brl, calcPrice, extrasTotal, num, sitePost, unitName, useCart, useSite, waLink, type SiteProduct } from '../siteApi';
+import { SITE, brl, calcPrice, calcSizes, extrasTotal, num, sitePost, unitName, useCart, useSite, waLink, type SiteProduct } from '../siteApi';
 import { ProductImage, defaultQty } from '../components';
 
 interface Done { number: number; total: number; unpriced: number; whatsappUrl: string | null; customer: { name: string; phone: string }; items: { description: string; quantity: number; total: number; priced: boolean }[] }
@@ -26,13 +26,13 @@ const QuotePage: React.FC = () => {
   const [error, setError] = useState('');
   const [done, setDone] = useState<Done | null>(null);
 
-  const lines = rows.map(({ item, p }) => ({ item, p, calc: calcPrice(p, item.quantity), extras: (p.options ?? []).filter((o) => item.extras?.includes(o.name)) }));
+  const lines = rows.map(({ item, p }) => ({ item, p, calc: (() => { if (!item.sizes) return calcPrice(p, item.quantity); const sc = calcSizes(p, item.sizes); return sc.ok ? { ok: true as const, unit: sc.unit, total: sc.total, offer: false } : sc; })(), sizeText: item.sizes ? Object.entries(item.sizes).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(', ') : '', extras: (p.options ?? []).filter((o) => item.extras?.includes(o.name)) }));
   const total = lines.reduce((s, l) => s + (l.calc.ok ? l.calc.total : 0) + extrasTotal(l.p, l.item.extras), 0);
   const unpriced = lines.filter((l) => !l.calc.ok).length;
 
   const summary = [
     `Olá! Gostaria de um orçamento:`,
-    ...lines.map((l) => `• ${num(l.item.quantity)} × ${l.p.name}${l.item.note ? ` (${l.item.note})` : ''}${l.extras.length ? ` + ${l.extras.map((o) => o.name).join(', ')}` : ''}${l.calc.ok ? ` — ${brl(l.calc.total + extrasTotal(l.p, l.item.extras))}` : ''}`),
+    ...lines.map((l) => `• ${num(l.item.quantity)} × ${l.p.name}${l.item.sizes ? ` (${l.item.color ? `cor ${l.item.color}, ` : ''}tamanhos: ${l.sizeText})` : ''}${l.item.note ? ` (${l.item.note})` : ''}${l.extras.length ? ` + ${l.extras.map((o) => o.name).join(', ')}` : ''}${l.calc.ok ? ` — ${brl(l.calc.total + extrasTotal(l.p, l.item.extras))}` : ''}`),
     total > 0 ? `Total estimado: ${brl(total)}` : '',
   ].filter(Boolean).join('\n');
 
@@ -100,7 +100,7 @@ const QuotePage: React.FC = () => {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-5 items-start">
         <ul className="lg:col-span-3 space-y-3">
-          {lines.map(({ item, p, calc, extras }) => (
+          {lines.map(({ item, p, calc, extras, sizeText }) => (
             <li key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex gap-4">
               <Link to={`${SITE}/produto/${p.id}`} className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-xl overflow-hidden bg-slate-100"><ProductImage p={p} className="h-full w-full" /></Link>
               <div className="min-w-0 flex-1">
@@ -109,7 +109,9 @@ const QuotePage: React.FC = () => {
                   <button type="button" aria-label={`Remover ${p.name}`} onClick={() => cart.remove(p.id)} className="h-9 w-9 shrink-0 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center"><Trash2 size={18} /></button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-                  {p.pricingMode === 'package'
+                  {item.sizes
+                    ? <div className="text-sm text-slate-700"><p>{item.color ? <>Cor: <b>{item.color}</b> · </> : null}Tamanhos: <b>{sizeText}</b></p><Link to={`${SITE}/produto/${p.id}`} className="text-xs font-semibold text-blue-700 hover:underline">Editar tamanhos e cor</Link></div>
+                    : p.pricingMode === 'package'
                     ? <select aria-label={`Quantidade de ${p.name}`} value={item.quantity} onChange={(e) => cart.update(p.id, { quantity: Number(e.target.value) })} className="h-10 px-3 rounded-lg border border-slate-300 bg-white text-sm">
                         {[...p.priceTiers].sort((a, b) => a.minQty - b.minQty).map((t) => <option key={t.minQty} value={t.minQty}>{num(t.minQty)} un</option>)}
                       </select>

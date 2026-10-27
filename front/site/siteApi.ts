@@ -14,9 +14,10 @@ export const setScrollLock = (locked: boolean) => {
 export type Unit = 'un' | 'milheiro' | 'm2' | 'folha';
 export interface Tier { minQty: number; price: number }
 export interface ProductOption { name: string; price: number; kind: 'acabamento' | 'servico' }
+export interface ProductVariants { sizes: { name: string; surcharge: number }[]; colors: { name: string; hex?: string }[] }
 export interface SiteProduct {
   id: string; name: string; category: string; unit: Unit; pricingMode: 'unit' | 'package'; minQty: number; leadTime?: string | null;
-  price: number; offerPrice: number | null; featured: boolean; priceTiers: Tier[]; options: ProductOption[]; description: string | null; images: string[];
+  price: number; offerPrice: number | null; featured: boolean; priceTiers: Tier[]; options: ProductOption[]; variants?: ProductVariants | null; description: string | null; images: string[];
 }
 export interface SiteProductFull extends SiteProduct { howItWorks: string | null; related: SiteProduct[] }
 export interface SiteBanner { id: string; title: string; subtitle?: string | null; buttonText?: string | null; buttonUrl?: string | null; hasImage: boolean }
@@ -91,13 +92,25 @@ export function calcPrice(p: SiteProduct, qty: number): Calc {
   return { ok: true, unit: price, total: Math.round(price * qty * 100) / 100, offer };
 }
 
+export type SizeCalc = { ok: true; qty: number; unit: number; total: number; lines: { size: string; quantity: number; unit: number; total: number }[] } | { ok: false; error: string };
+/** Roupas: a faixa de preço vale pelo total de peças; cada peça paga o acréscimo do seu tamanho (mesma regra do servidor). */
+export function calcSizes(p: SiteProduct, sizes: Record<string, number>): SizeCalc {
+  const picks = (p.variants?.sizes ?? []).map((s) => ({ s, q: Math.max(0, Math.floor(sizes[s.name] || 0)) })).filter((x) => x.q > 0);
+  const qty = picks.reduce((n, x) => n + x.q, 0);
+  if (!qty) return { ok: false, error: 'Escolha as peças de cada tamanho.' };
+  const base = calcPrice(p, qty);
+  if (!base.ok) return { ok: false, error: base.error };
+  const lines = picks.map((x) => ({ size: x.s.name, quantity: x.q, unit: base.unit + x.s.surcharge, total: Math.round((base.unit + x.s.surcharge) * x.q * 100) / 100 }));
+  return { ok: true, qty, unit: base.unit, total: Math.round(lines.reduce((s, l) => s + l.total, 0) * 100) / 100, lines };
+}
+
 // ── Dados da página (carregados uma vez e divididos entre as telas) ───────────
 export interface SiteCtx { home: SiteHome | null; error: string; reload: () => void }
 export const SiteContext = createContext<SiteCtx>({ home: null, error: '', reload: () => {} });
 export const useSite = () => useContext(SiteContext);
 
 // ── "Meu orçamento": itens escolhidos, guardados no navegador ─────────────────
-export interface CartItem { productId: string; quantity: number; note?: string; extras?: string[] }
+export interface CartItem { productId: string; quantity: number; note?: string; extras?: string[]; sizes?: Record<string, number>; color?: string }
 const KEY = 'pixel.site.cart';
 const listeners = new Set<() => void>();
 let snapshot: CartItem[] = read();
@@ -117,9 +130,9 @@ export function useCart() {
   return {
     items,
     count: items.length,
-    add: (productId: string, quantity: number, note?: string, extras?: string[]) => {
+    add: (productId: string, quantity: number, note?: string, extras?: string[], variant?: { sizes?: Record<string, number>; color?: string }) => {
       const found = snapshot.find((i) => i.productId === productId);
-      write(found ? snapshot.map((i) => (i.productId === productId ? { ...i, quantity, note: note ?? i.note, extras: extras ?? i.extras } : i)) : [...snapshot, { productId, quantity, note, extras }]);
+      write(found ? snapshot.map((i) => (i.productId === productId ? { ...i, quantity, note: note ?? i.note, extras: extras ?? i.extras, sizes: variant?.sizes, color: variant?.color } : i)) : [...snapshot, { productId, quantity, note, extras, ...variant }]);
     },
     update: (productId: string, patch: Partial<CartItem>) => write(snapshot.map((i) => (i.productId === productId ? { ...i, ...patch } : i))),
     remove: (productId: string) => write(snapshot.filter((i) => i.productId !== productId)),

@@ -12,6 +12,7 @@ export interface Product {
   id: string; name: string; category: string; description?: string | null; howItWorks?: string | null; leadTime?: string | null; pricingMode?: 'unit' | 'package'; priceTiers?: { minQty: number; price: number }[] | null; unit: 'un' | 'milheiro' | 'm2' | 'folha';
   price: number; minQty: number; active: boolean;
   options?: { name: string; price: number; kind: 'acabamento' | 'servico' }[] | null;
+  variants?: { sizes: { name: string; surcharge: number }[]; colors: { name: string; hex?: string }[] } | null;
   offerPrice?: number | null; featured?: boolean; showOnSite?: boolean; images?: { id: string; name: string; sortOrder: number }[];
 }
 

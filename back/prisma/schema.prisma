@@ -68,6 +68,7 @@ model Product {
   priceTiers     Json?
   minQty         Int      @default(1)
   leadTime       String?  @db.VarChar(80) // prazo em texto livre: "4 a 5 dias úteis". Vazio = a consultar
+  variants       Json? // tamanhos e cores (roupas): { sizes: [{ name, surcharge }], colors: [{ name, hex }] }; surcharge = acréscimo por peça desse tamanho
   options        Json? // opcionais com preço: [{ name, price, kind: "acabamento" | "servico" }] (ex.: corte especial R$ 30, checagem profissional R$ 16,99)
   offerPrice     Decimal? @db.Decimal(10, 2) // oferta: preço unitário promocional (vale no site, nos orçamentos e para a IA; só em preço por unidade)
   featured       Boolean  @default(false) // destaque na página inicial do site
