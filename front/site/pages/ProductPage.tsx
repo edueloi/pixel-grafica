@@ -38,7 +38,7 @@ const ProductPage: React.FC = () => {
   const hasSizes = !!p?.variants?.sizes.length;
   const sc = p && hasSizes ? calcSizes(p, sizes) : null;
   const calc = p ? (sc ? (sc.ok ? { ok: true as const, unit: sc.unit, total: sc.total, offer: false } : sc) : calcPrice(p, qty)) : null;
-  const pieces = sc?.ok ? sc.qty : qty;
+  const pieces = sc?.ok ? sc.qty : hasSizes ? 0 : qty;
   const sizeText = sc?.ok ? sc.lines.map((l) => `${l.quantity} ${l.size}`).join(', ') : '';
 
   if (error) return <div className="pxs-container py-24 text-center"><PackageX size={44} className="mx-auto text-slate-400 mb-3" /><p className="text-lg font-semibold text-slate-800">{error}</p><Link to={`${SITE}/catalogo`} className="inline-flex mt-5 h-11 px-6 items-center rounded-full bg-blue-600 text-white font-semibold">Ver o catálogo</Link></div>;
